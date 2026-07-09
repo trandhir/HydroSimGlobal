@@ -1,0 +1,2 @@
+HydroSim Global v2 is a browser-based, physically based watershed hydrology simulator that runs a SWAT+-style daily water balance model for any watershed on Earth. It automatically delineates the basin, pulls real climate, terrain, soil, and land-cover data from open scientific APIs, derives model parameters from that data, simulates streamflow, and lets you calibrate and quantify uncertainty — entirely client-side, with no installation or server.
+
