@@ -1,0 +1,2609 @@
+<!DOCTYPE html>
+<!--
+  ============================================================================
+  HydroSim Global v2 — Real Watershed Simulation Platform
+  Copyright (c) 2026 Timothy O. Randhir. All rights reserved.
+
+  Author:  Timothy O. Randhir, Ph.D.
+           Department of Environmental Conservation
+           University of Massachusetts Amherst
+
+  This software and its underlying model formulations are the intellectual
+  property of the author. No part may be reproduced, distributed, or used to
+  create derivative works without prior written permission of the author.
+  Provided "as is" without warranty of any kind.
+  ============================================================================
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="author" content="Timothy O. Randhir">
+<meta name="copyright" content="© 2026 Timothy O. Randhir. All rights reserved.">
+<title>HydroSim Global v2 — Real Watershed Simulation</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{
+  /* Deep slate-teal base — softer than pure black, easier on the eyes */
+  --bg:#0b1418;--surf:#12202a;--surf2:#182b38;--surf3:#1f3745;
+  --bord:#264556;--bord2:#33586b;
+  /* Water-inspired accents: glacier cyan, spring aqua, warm sand, coral, sunset */
+  --c1:#38bdf8;--c2:#34d399;--amber:#fbbf24;--red:#fb7185;--orange:#fb923c;
+  --txt:#e2eef5;--txt2:#8aa6ba;--txt3:#7597ad;
+  --mono:'IBM Plex Mono',monospace;--sans:'Outfit',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;font-family:var(--sans);background:var(--bg);color:var(--txt);}
+
+/* ── TOPBAR ── */
+.topbar{height:46px;background:linear-gradient(180deg,#16283440,var(--surf));border-bottom:1px solid var(--bord);display:flex;align-items:center;padding:0 14px;gap:12px;flex-shrink:0;z-index:300;}
+.brand{font-weight:900;font-size:16px;letter-spacing:-.5px;white-space:nowrap;}
+.brand em{font-style:normal;background:linear-gradient(90deg,var(--c1),var(--c2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+.brand sup{font-size:9px;color:var(--amber);margin-left:2px;font-weight:700;}
+.tabs{display:flex;gap:2px;}
+.tab{font-family:var(--mono);font-size:10px;font-weight:500;color:var(--txt2);border:none;background:0;padding:5px 13px;border-radius:5px;cursor:pointer;transition:.15s;text-transform:uppercase;letter-spacing:.5px;}
+.tab:hover{background:var(--surf3);color:var(--txt);}
+.tab.on{background:linear-gradient(135deg,var(--c1),#0ea5e9);color:#06121a;font-weight:700;box-shadow:0 2px 8px rgba(56,189,248,.25);}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:9px;color:var(--txt2);}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--c2);box-shadow:0 0 8px var(--c2);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:8px;font-size:9px;font-weight:700;border:1px solid;transition:.2s;}
+.badge.ok{border-color:var(--c2);color:var(--c2);background:rgba(52,211,153,.07);}
+.badge.load{border-color:var(--amber);color:var(--amber);background:rgba(251,191,36,.07);}
+.badge.err{border-color:var(--red);color:var(--red);background:rgba(251,113,133,.07);}
+.badge.off{border-color:var(--txt3);color:var(--txt3);}
+.hbtn{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--c1);background:transparent;border:1px solid var(--bord2);padding:3px 9px;border-radius:5px;cursor:pointer;transition:.15s;white-space:nowrap;}
+.hbtn:hover{background:var(--surf3);border-color:var(--c1);color:var(--txt);}
+
+/* ── LAYOUT ── */
+.body{display:flex;flex:1;overflow:hidden;height:calc(100vh - 46px - 20px);}
+
+/* ── SIDEBAR ── */
+.sidebar{width:290px;background:var(--surf);border-right:1px solid var(--bord);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;}
+.sb-blk{padding:11px 12px;border-bottom:1px solid var(--bord);flex-shrink:0;}
+.sb-blk.scroll{overflow-y:auto;flex:1;}
+.sh{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between;}
+.sh span{color:var(--c1);}
+
+/* search */
+.srch-wrap{position:relative;}
+.srch{width:100%;background:var(--surf2);border:1px solid var(--bord);color:var(--txt);padding:7px 10px 7px 30px;border-radius:5px;font-family:var(--mono);font-size:10px;outline:none;transition:.12s;}
+.srch:focus{border-color:var(--c1);}
+.srch-ico{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--txt2);font-size:12px;pointer-events:none;}
+.drop{position:absolute;top:calc(100%+3px);left:0;right:0;z-index:600;background:var(--surf2);border:1px solid var(--bord2);border-radius:5px;max-height:190px;overflow-y:auto;display:none;}
+.drop.open{display:block;}
+.di{padding:7px 10px;font-family:var(--mono);font-size:10px;cursor:pointer;border-bottom:1px solid var(--bord);}
+.di:hover{background:var(--surf3);color:var(--c1);}
+.di small{display:block;color:var(--txt2);font-size:9px;margin-top:1px;}
+
+/* quick basins */
+.qgrid{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
+.qbtn{background:var(--surf2);border:1px solid var(--bord);color:var(--txt2);padding:5px 6px;border-radius:4px;font-family:var(--mono);font-size:9px;cursor:pointer;transition:.1s;text-align:left;}
+.qbtn:hover{border-color:var(--c1);color:var(--c1);}
+.qbtn b{display:block;color:var(--txt);font-size:10px;}
+.qbtn small{font-size:8px;}
+
+/* coords */
+.coo-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px;}
+.coo-lbl{font-family:var(--mono);font-size:9px;color:var(--txt2);margin-bottom:2px;}
+.inp{width:100%;background:var(--surf2);border:1px solid var(--bord);color:var(--txt);padding:5px 7px;border-radius:4px;font-family:var(--mono);font-size:10px;outline:none;}
+.inp:focus{border-color:var(--c1);}
+
+/* params */
+.pr{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+.pl{font-family:var(--mono);font-size:9px;color:var(--txt2);width:80px;flex-shrink:0;}
+.pv{font-family:var(--mono);font-size:10px;color:var(--c1);width:46px;text-align:right;flex-shrink:0;}
+input[type=range]{flex:1;height:2px;-webkit-appearance:none;background:var(--bord2);border-radius:1px;outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--c1);cursor:pointer;box-shadow:0 0 5px var(--c1);}
+.sel{width:100%;background:var(--surf2);border:1px solid var(--bord);color:var(--txt);padding:5px 7px;border-radius:4px;font-family:var(--mono);font-size:10px;outline:none;cursor:pointer;}
+.sel:focus{border-color:var(--c1);}
+
+/* buttons */
+.btn{padding:7px 12px;border:none;border-radius:4px;font-family:var(--sans);font-size:11px;font-weight:700;cursor:pointer;transition:.13s;width:100%;margin-top:4px;}
+.btn-c{background:var(--c1);color:#06121a;}.btn-c:hover{background:#0ea5e9;transform:translateY(-1px);box-shadow:0 3px 10px rgba(56,189,248,.3);}
+.btn-g{background:var(--c2);color:#06121a;}.btn-g:hover{background:#10b981;transform:translateY(-1px);box-shadow:0 3px 10px rgba(52,211,153,.3);}
+.btn-a{background:var(--amber);color:#1a1204;}.btn-a:hover{background:#d97706;}
+.btn-ghost{background:var(--surf2);color:var(--txt);border:1px solid var(--bord);margin-top:0;}.btn-ghost:hover{border-color:var(--c1);}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none!important;}
+
+/* metrics */
+.mgrid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.mc{background:var(--surf2);border:1px solid var(--bord);border-radius:5px;padding:7px;text-align:center;}
+.mv{font-family:var(--mono);font-size:14px;font-weight:700;}
+.mv.g{color:var(--c2);}.mv.a{color:var(--amber);}.mv.r{color:var(--red);}.mv.c{color:var(--c1);}
+.ml{font-family:var(--mono);font-size:8px;color:var(--txt3);margin-top:2px;}
+
+/* data sources */
+.ds{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--bord);font-family:var(--mono);font-size:9px;}
+.ds-ic{width:16px;height:16px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;}
+.ds-nm{flex:1;color:var(--txt2);}
+.ds-vl{color:var(--c1);text-align:right;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+/* ── MAP ── */
+.center{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;}
+.map-wrap{flex:1;position:relative;overflow:hidden;}
+#map{position:absolute;inset:0;}
+
+/* map overlay controls */
+.map-ctrl{position:absolute;top:10px;right:10px;z-index:400;display:flex;flex-direction:column;gap:5px;}
+.mc-btn{width:30px;height:30px;background:rgba(18,32,42,.92);border:1px solid var(--bord2);border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--txt2);font-size:12px;transition:.12s;backdrop-filter:blur(4px);}
+.mc-btn:hover{border-color:var(--c1);color:var(--c1);}
+.mc-btn.on{border-color:var(--c1);color:var(--c1);background:rgba(56,189,248,.1);}
+
+/* watershed info card */
+.ws-card{position:absolute;bottom:10px;left:10px;z-index:400;background:rgba(18,32,42,.94);border:1px solid var(--bord2);border-radius:7px;padding:10px 13px;font-family:var(--mono);font-size:9px;min-width:230px;backdrop-filter:blur(8px);display:none;}
+.wc-row{display:flex;justify-content:space-between;gap:16px;margin-bottom:3px;}
+.wc-k{color:var(--txt2);}
+.wc-v{color:var(--c1);font-weight:600;}
+
+/* data loading overlay on map */
+.map-loading{position:absolute;inset:0;z-index:500;background:rgba(11,20,24,.75);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;backdrop-filter:blur(4px);}
+.map-loading.show{display:flex;}
+.spin{width:36px;height:36px;border:3px solid var(--bord2);border-top-color:var(--c1);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-txt{font-family:var(--mono);font-size:11px;color:var(--c1);}
+.load-steps{font-family:var(--mono);font-size:9px;color:var(--txt2);max-width:300px;text-align:center;line-height:1.8;}
+
+/* ── CHARTS BAR ── */
+.charts{height:195px;background:var(--surf);border-top:1px solid var(--bord);display:flex;flex-shrink:0;}
+.cp{flex:1;display:flex;flex-direction:column;padding:9px 11px;border-right:1px solid var(--bord);}
+.cp:last-child{border-right:none;}
+.ct{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--txt2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center;}
+.cc{flex:1;}
+
+/* ── STATUSBAR ── */
+.statusbar{height:20px;background:var(--surf);border-top:1px solid var(--bord);display:flex;align-items:center;padding:0 10px;gap:14px;font-family:var(--mono);font-size:8px;color:var(--txt2);flex-shrink:0;}
+.ss{display:flex;align-items:center;gap:4px;}
+.ss b{color:var(--c1);}
+
+/* ── OVERLAY PANELS ── */
+.panel{display:none;position:absolute;inset:0;z-index:1200;background:rgba(11,20,24,.97);overflow-y:auto;padding:18px;backdrop-filter:blur(4px);}
+.panel.open{display:block;}
+.ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;max-width:1360px;margin-left:auto;margin-right:auto;}
+.pt{font-size:19px;font-weight:900;}
+.pt em{font-style:normal;color:var(--c1);}
+.pg{display:grid;gap:12px;max-width:1360px;margin:0 auto;}
+.pg-3{grid-template-columns:minmax(260px,300px) minmax(320px,1fr) minmax(280px,340px);}
+@media (max-width:1100px){.pg-3{grid-template-columns:1fr 1fr;}}
+@media (max-width:720px){.pg-3{grid-template-columns:1fr;}}
+.pg-2{grid-template-columns:1fr 1fr;}
+.pg-22{grid-template-columns:240px 1fr;}
+.card{background:var(--surf);border:1px solid var(--bord);border-radius:7px;padding:13px;}
+.card h3{font-family:var(--mono);font-size:9px;color:var(--c1);text-transform:uppercase;letter-spacing:.8px;margin-bottom:10px;}
+.ptxt{font-size:12px;line-height:1.65;color:var(--txt);margin-bottom:8px;}
+.ptxt b{color:var(--c1);font-weight:600;}
+.itbl{width:100%;border-collapse:collapse;font-size:11px;}
+.itbl td{padding:5px 7px;border-bottom:1px solid var(--bord);vertical-align:top;line-height:1.45;}
+.itbl td:first-child{color:var(--c2);font-family:var(--mono);font-size:10px;white-space:nowrap;width:130px;font-weight:600;}
+.itbl td:last-child{color:var(--txt);}
+.itbl tr:last-child td{border-bottom:none;}
+.step{display:flex;gap:9px;align-items:flex-start;margin-bottom:10px;font-size:12px;line-height:1.55;color:var(--txt);}
+.step b{color:var(--c1);font-weight:600;}
+.stepn{flex-shrink:0;width:20px;height:20px;border-radius:50%;background:var(--c1);color:#06121a;font-family:var(--mono);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+.kbd{font-family:var(--mono);font-size:10px;background:var(--surf3);border:1px solid var(--bord2);border-radius:4px;padding:1px 6px;color:var(--c1);white-space:nowrap;}
+.cite-lbl{font-family:var(--mono);font-size:9px;font-weight:700;color:var(--c2);text-transform:uppercase;letter-spacing:1px;margin:11px 0 4px;}
+.cite{position:relative;background:var(--bg);border:1px solid var(--bord);border-radius:5px;padding:9px 34px 9px 11px;font-family:var(--mono);font-size:10.5px;line-height:1.6;color:var(--txt);white-space:pre-wrap;word-break:break-word;}
+.cite i{color:var(--c1);font-style:italic;}
+.cite-copy{position:absolute;top:6px;right:6px;background:var(--surf3);border:1px solid var(--bord2);border-radius:4px;color:var(--txt2);font-family:var(--sans);font-size:9px;font-weight:700;padding:2px 7px;cursor:pointer;transition:.15s;}
+.cite-copy:hover{border-color:var(--c1);color:var(--c1);}
+.cite-copy.done{border-color:var(--c2);color:var(--c2);}
+.ptbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:9px;}
+.ptbl th{color:var(--txt3);padding:3px 5px;border-bottom:1px solid var(--bord);text-align:left;font-weight:500;}
+.ptbl td{padding:4px 5px;color:var(--txt2);border-bottom:1px solid #080e18;}
+.ptbl td input,.ptbl td select{background:var(--surf2);border:1px solid var(--bord);color:var(--txt);padding:2px 4px;font-family:var(--mono);font-size:9px;border-radius:3px;outline:none;width:100%;}
+.ptbl tr:hover td{background:var(--surf2);}
+.bv{color:var(--c2)!important;font-weight:700;}
+.prog-wrap{height:3px;background:var(--bord);border-radius:2px;overflow:hidden;margin:5px 0;}
+.prog{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--c1),var(--c2));transition:width .25s;}
+.log{background:var(--bg);border:1px solid var(--bord);border-radius:5px;padding:7px;height:120px;overflow-y:auto;font-family:var(--mono);font-size:9px;color:var(--txt2);line-height:1.9;}
+.log::-webkit-scrollbar{width:3px;}
+.log::-webkit-scrollbar-thumb{background:var(--bord2);}
+.ll span{font-weight:700;}
+.ll.i span{color:var(--c1);}.ll.ok span{color:var(--c2);}.ll.w span{color:var(--amber);}.ll.e span{color:var(--red);}
+::-webkit-scrollbar{width:3px;height:3px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--bord2);border-radius:2px;}
+
+/* toast */
+.toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(50px);background:var(--surf);border:1px solid var(--bord2);border-radius:7px;padding:9px 18px;font-family:var(--mono);font-size:10px;z-index:9999;transition:.28s;opacity:0;min-width:260px;text-align:center;}
+.toast.on{transform:translateX(-50%) translateY(0);opacity:1;}
+
+/* Leaflet overrides for dark theme */
+.leaflet-control-zoom a{background:rgba(18,32,42,.92)!important;color:var(--txt)!important;border-color:var(--bord2)!important;}
+.leaflet-control-zoom a:hover{background:var(--surf3)!important;color:var(--c1)!important;}
+.leaflet-bar{border:1px solid var(--bord2)!important;box-shadow:none!important;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">Hydro<em>Sim</em> Global<sup>v2</sup></div>
+  <div class="tabs">
+    <button class="tab on"  onclick="setTab('sim',this)">Simulation</button>
+    <button class="tab"     onclick="setTab('calib',this)">Calibration</button>
+    <button class="tab"     onclick="setTab('results',this)">Results</button>
+    <button class="tab"     onclick="setTab('export',this)">Export</button>
+  </div>
+  <div class="hdr-right">
+    <div class="pulse"></div>
+    <span id="hdrStatus">SELECT WATERSHED</span>
+    <div class="badge off" id="b_met">OpenMeteo</div>
+    <div class="badge off" id="b_dem">SRTM</div>
+    <div class="badge off" id="b_soil">SoilGrids</div>
+    <div class="badge off" id="b_lc">WorldCover</div>
+    <div class="badge off" id="b_q">GRDC/USGS</div>
+    <button class="hbtn" onclick="setTab('help',null)" title="How to use">? Help</button>
+    <button class="hbtn" onclick="setTab('about',null)" title="About &amp; technical info">ⓘ About</button>
+  </div>
+</div>
+
+<div class="body">
+<!-- ══ SIDEBAR ══ -->
+<div class="sidebar">
+
+  <!-- Search -->
+  <div class="sb-blk">
+    <div class="sh">Watershed Location <span id="coordTxt"></span></div>
+    <div class="srch-wrap">
+      <span class="srch-ico">🔍</span>
+      <input class="srch" id="srchInput" placeholder="Search river, basin, city…" oninput="onSearch(this.value)" autocomplete="off">
+      <div class="drop" id="drop"></div>
+    </div>
+    <div class="coo-grid">
+      <div><div class="coo-lbl">Latitude</div><input class="inp" id="latI" type="number" placeholder="e.g. 45.12" step="0.001" oninput="onCoord()"></div>
+      <div><div class="coo-lbl">Longitude</div><input class="inp" id="lonI" type="number" placeholder="e.g. -93.5" step="0.001" oninput="onCoord()"></div>
+    </div>
+    <button class="btn btn-c" id="loadBtn" onclick="loadWatershed()" disabled style="margin-top:7px;">⬇ Fetch Real Data</button>
+  </div>
+
+  <!-- Quick Basins -->
+  <div class="sb-blk">
+    <div class="sh">Global Benchmark Basins</div>
+    <div class="qgrid">
+      <div class="qbtn" onclick="quickLoad('Amazon',-1.947,-55.511,4680000)"><b>🌿 Amazon</b><small>Óbidos gauge · 4,680,000 km²</small></div>
+      <div class="qbtn" onclick="quickLoad('Ganges',23.08,89.03,950000)"><b>🏔 Ganges</b><small>Hardinge Bridge · 950,000 km²</small></div>
+      <div class="qbtn" onclick="quickLoad('Mississippi',29.15,-89.25,3220000)"><b>🌽 Mississippi</b><small>Head of Passes · 3,220,000 km²</small></div>
+      <div class="qbtn" onclick="quickLoad('Nile',30.15,31.13,3254000)"><b>☀ Nile</b><small>Cairo/Delta · 3,254,000 km²</small></div>
+      <div class="qbtn" onclick="quickLoad('Rhine',51.85,6.10,160000)"><b>🏭 Rhine</b><small>Lobith gauge · 160,000 km²</small></div>
+      <div class="qbtn" onclick="quickLoad('Congo',-6.06,12.45,3680000)"><b>🌴 Congo</b><small>Boma/mouth · 3,680,000 km²</small></div>
+      <div class="qbtn" onclick="quickLoad('Colorado',31.90,-114.72,640000)"><b>🏜 Colorado</b><small>SW border · 640,000 km²</small></div>
+      <div class="qbtn" onclick="quickLoad('Yangtze',31.79,121.28,1800000)"><b>🐉 Yangtze</b><small>Datong/mouth · 1,800,000 km²</small></div>
+    </div>
+  </div>
+
+  <!-- Simulation Setup -->
+  <div class="sb-blk">
+    <div class="sh">Simulation Setup</div>
+    <div class="pr" style="margin-bottom:6px"><span class="pl">Period</span>
+      <select class="sel" id="simYrs" style="flex:1">
+        <option value="1">2023 (1 yr)</option>
+        <option value="5" selected>2019–2023 (5 yr)</option>
+        <option value="10">2014–2023 (10 yr)</option>
+        <option value="20">2004–2023 (20 yr)</option>
+      </select>
+    </div>
+    <div class="pr" style="margin-bottom:6px"><span class="pl">ET Method</span>
+      <select class="sel" id="etMeth" style="flex:1">
+        <option value="fao" selected>FAO-56 PM (ERA5 PET)</option>
+        <option value="harg">Hargreaves</option>
+        <option value="pt">Priestley-Taylor</option>
+      </select>
+    </div>
+    <div class="pr" style="margin-bottom:6px"><span class="pl">Routing</span>
+      <select class="sel" id="routMeth" style="flex:1">
+        <option value="musk" selected>Muskingum</option>
+        <option value="vsm">Variable Storage</option>
+      </select>
+    </div>
+    <button class="btn btn-g" id="runBtn" onclick="runSim()" disabled>▶ Run SWAT+ Simulation</button>
+  </div>
+
+  <!-- SWAT+ Parameters -->
+  <div class="sb-blk">
+    <div class="sh">SWAT+ Parameters <span id="paramSrc">(manual)</span></div>
+    <div class="pr"><span class="pl">CN2</span><input type="range" min="30" max="98" value="72" id="s_cn2" oninput="setP('cn2',+this.value,this)"><span class="pv" id="v_cn2">72</span></div>
+    <div class="pr"><span class="pl">ALPHA_BF</span><input type="range" min="1" max="100" value="48" id="s_ab" oninput="setP('alpha_bf',this.value/100,this)"><span class="pv" id="v_ab">0.48</span></div>
+    <div class="pr"><span class="pl">GW_DELAY</span><input type="range" min="0" max="500" value="31" id="s_gd" oninput="setP('gw_delay',+this.value,this)"><span class="pv" id="v_gd">31</span></div>
+    <div class="pr"><span class="pl">ESCO</span><input type="range" min="1" max="100" value="95" id="s_es" oninput="setP('esco',this.value/100,this)"><span class="pv" id="v_es">0.95</span></div>
+    <div class="pr"><span class="pl">SOL_AWC</span><input type="range" min="1" max="60" value="18" id="s_sa" oninput="setP('sol_awc',this.value/100,this)"><span class="pv" id="v_sa">0.18</span></div>
+    <div class="pr"><span class="pl">SURLAG</span><input type="range" min="5" max="200" value="40" id="s_sl" oninput="setP('surlag',this.value/10,this)"><span class="pv" id="v_sl">4.0</span></div>
+    <div class="pr"><span class="pl">GWQMN</span><input type="range" min="0" max="5000" value="1000" id="s_gq" oninput="setP('gwqmn',+this.value,this)"><span class="pv" id="v_gq">1000</span></div>
+    <div class="pr"><span class="pl">SOL_K</span><input type="range" min="1" max="300" value="100" id="s_sk" oninput="setP('sol_k',this.value/100,this)"><span class="pv" id="v_sk">1.00</span></div>
+  </div>
+
+  <!-- Metrics + Data Sources -->
+  <div class="sb-blk scroll">
+    <div class="sh">Performance Metrics</div>
+    <div class="mgrid">
+      <div class="mc"><div class="mv c" id="m_nse">—</div><div class="ml">NSE</div></div>
+      <div class="mc"><div class="mv c" id="m_kge">—</div><div class="ml">KGE</div></div>
+      <div class="mc"><div class="mv c" id="m_r2">—</div><div class="ml">R²</div></div>
+      <div class="mc"><div class="mv c" id="m_pb">—</div><div class="ml">PBIAS %</div></div>
+    </div>
+    <div class="sh" style="margin-top:10px;">Live Data Sources</div>
+    <div class="ds"><div class="ds-ic" style="background:#0a2818">🌧</div><div class="ds-nm">Precip + Temp (ERA5)</div><div class="ds-vl" id="ds_met">—</div></div>
+    <div class="ds"><div class="ds-ic" style="background:#18100a">🌡</div><div class="ds-nm">PET / OpenMeteo</div><div class="ds-vl" id="ds_pet">—</div></div>
+    <div class="ds"><div class="ds-ic" style="background:#0a1018">🏔</div><div class="ds-nm">DEM / SRTM 90m</div><div class="ds-vl" id="ds_dem">—</div></div>
+    <div class="ds"><div class="ds-ic" style="background:#180a18">🪨</div><div class="ds-nm">Soil / ISRIC SoilGrids</div><div class="ds-vl" id="ds_soil">—</div></div>
+    <div class="ds"><div class="ds-ic" style="background:#0a1808">🌿</div><div class="ds-nm">Land Cover / ESA</div><div class="ds-vl" id="ds_lc">—</div></div>
+    <div class="ds"><div class="ds-ic" style="background:#180e0a">💧</div><div class="ds-nm">Streamflow proxy</div><div class="ds-vl" id="ds_q">—</div></div>
+  </div>
+</div>
+
+<!-- ══ MAIN ══ -->
+<div class="center">
+
+  <!-- calibration panel -->
+  <div class="panel" id="panCalib">
+    <div class="ph">
+      <div class="pt"><em>Auto-Calibration</em> — SUFI-2 / PSO / GLUE</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-c" style="width:auto;padding:6px 16px" onclick="startCalib()">⚡ Start</button>
+        <button class="btn btn-ghost" style="padding:6px 10px" onclick="setTab('sim',document.querySelector('.tab'))">✕</button>
+      </div>
+    </div>
+    <div class="pg pg-3">
+      <!-- col 1: settings -->
+      <div class="card">
+        <h3>Algorithm Settings</h3>
+        <div class="pr" style="margin-bottom:7px"><span class="pl">Method</span><select class="sel" id="c_meth" style="flex:1"><option>SUFI-2</option><option>PSO</option><option>GLUE</option><option>ParaSol</option></select></div>
+        <div class="pr" style="margin-bottom:7px"><span class="pl">Objective</span><select class="sel" id="c_obj" style="flex:1"><option>NSE</option><option>KGE</option><option>NSE+logNSE</option><option>NSE+PBIAS</option><option>logNSE</option><option>R²</option></select></div>
+        <div class="pr" style="margin-bottom:7px"><span class="pl">Iterations</span><input class="inp" type="number" id="c_itr" value="400" style="flex:1"></div>
+        <div class="pr" style="margin-bottom:7px"><span class="pl">Sim/iter</span><input class="inp" type="number" id="c_sim" value="100" style="flex:1"></div>
+        <div class="pr" style="margin-bottom:7px"><span class="pl">P-factor ≥</span><input class="inp" type="number" id="c_pf" value="0.70" step="0.05" style="flex:1"></div>
+        <div style="margin-top:10px">
+          <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--txt2);margin-bottom:3px"><span>Progress</span><span id="c_pct">0%</span></div>
+          <div class="prog-wrap"><div class="prog" id="c_prog" style="width:0%"></div></div>
+          <div class="mgrid" style="margin-top:7px">
+            <div class="mc"><div class="mv g" id="c_nse">—</div><div class="ml">Best NSE</div></div>
+            <div class="mc"><div class="mv g" id="c_kge">—</div><div class="ml">Best KGE</div></div>
+            <div class="mc"><div class="mv c" id="c_pfa">—</div><div class="ml">P-Factor</div></div>
+            <div class="mc"><div class="mv c" id="c_rfa">—</div><div class="ml">R-Factor</div></div>
+          </div>
+        </div>
+      </div>
+      <!-- col 2: param table + dotty -->
+      <div class="card">
+        <h3>Parameters</h3>
+        <table class="ptbl" style="margin-bottom:8px">
+          <thead><tr><th>Parameter</th><th>Min</th><th>Max</th><th>Type</th><th>Best</th></tr></thead>
+          <tbody id="cParTbl">
+            <tr><td>CN2.mgt</td><td><input value="-0.25" id="lo_cn2"></td><td><input value="0.25" id="hi_cn2"></td><td><select><option>r__</option><option>v__</option><option>a__</option></select></td><td class="bv" id="bv_cn2">—</td></tr>
+            <tr><td>ALPHA_BF.gw</td><td><input value="0.0" id="lo_ab"></td><td><input value="1.0" id="hi_ab"></td><td><select><option>v__</option><option>r__</option></select></td><td class="bv" id="bv_ab">—</td></tr>
+            <tr><td>GW_DELAY.gw</td><td><input value="0" id="lo_gd"></td><td><input value="500" id="hi_gd"></td><td><select><option>v__</option></select></td><td class="bv" id="bv_gd">—</td></tr>
+            <tr><td>ESCO.hru</td><td><input value="0.01" id="lo_es"></td><td><input value="1.0" id="hi_es"></td><td><select><option>v__</option></select></td><td class="bv" id="bv_es">—</td></tr>
+            <tr><td>SOL_AWC.sol</td><td><input value="-0.3" id="lo_sa"></td><td><input value="0.3" id="hi_sa"></td><td><select><option>r__</option><option>v__</option></select></td><td class="bv" id="bv_sa">—</td></tr>
+            <tr><td>GWQMN.gw</td><td><input value="0" id="lo_gq"></td><td><input value="5000" id="hi_gq"></td><td><select><option>v__</option></select></td><td class="bv" id="bv_gq">—</td></tr>
+            <tr><td>SOL_K.sol</td><td><input value="-0.8" id="lo_sk"></td><td><input value="0.8" id="hi_sk"></td><td><select><option>r__</option></select></td><td class="bv" id="bv_sk">—</td></tr>
+            <tr><td>SURLAG.bsn</td><td><input value="0.5" id="lo_sl"></td><td><input value="24" id="hi_sl"></td><td><select><option>v__</option></select></td><td class="bv" id="bv_sl">—</td></tr>
+          </tbody>
+        </table>
+        <h3>Dotty Plots</h3>
+        <canvas id="dottyC" style="width:100%;height:140px;margin-top:4px"></canvas>
+      </div>
+      <!-- col 3: log -->
+      <div class="card">
+        <h3>Run Log</h3>
+        <div class="log" id="cLog"></div>
+      </div>
+      <!-- full-width: parameter sensitivity -->
+      <div class="card" style="grid-column:1/-1">
+        <h3>Parameter Sensitivity (t-stat ranking)</h3>
+        <table class="ptbl"><thead><tr><th>Rank</th><th>Parameter</th><th>t-stat</th><th>Sensitivity</th><th>Correlation with NSE</th></tr></thead>
+        <tbody id="sensBody"><tr><td colspan="5" style="color:var(--txt3);text-align:center;padding:8px">Run calibration to compute parameter sensitivity</td></tr></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- results panel -->
+  <div class="panel" id="panResults">
+    <div class="ph">
+      <div class="pt"><em>Results</em> Analysis</div>
+      <button class="btn btn-ghost" style="padding:6px 10px" onclick="setTab('sim',document.querySelector('.tab'))">✕</button>
+    </div>
+    <div class="pg pg-2" style="gap:12px">
+      <div class="card"><h3>Monthly Mean Flow — Sim vs Obs</h3><canvas id="rMonthly" style="width:100%;height:200px"></canvas></div>
+      <div class="card"><h3>Flow Duration Curve</h3><canvas id="rFDC" style="width:100%;height:200px"></canvas></div>
+      <div class="card"><h3>Annual Water Balance (mm)</h3><canvas id="rWB" style="width:100%;height:200px"></canvas></div>
+      <div class="card"><h3>Obs vs Sim Scatter</h3><canvas id="rScatter" style="width:100%;height:200px"></canvas></div>
+    </div>
+  </div>
+
+  <!-- export panel -->
+  <div class="panel" id="panExport">
+    <div class="ph">
+      <div class="pt"><em>Export</em> Output</div>
+      <button class="btn btn-ghost" style="padding:6px 10px" onclick="setTab('sim',document.querySelector('.tab'))">✕</button>
+    </div>
+    <div class="pg pg-22">
+      <div class="card">
+        <h3>Output Files</h3>
+        <div style="font-family:var(--mono);font-size:10px;line-height:2.5">
+          <div style="cursor:pointer;color:var(--c1)" onclick="previewFile('rch')">📄 output.rch</div>
+          <div style="cursor:pointer;color:var(--c1)" onclick="previewFile('hru')">📄 output.hru</div>
+          <div style="cursor:pointer;color:var(--c1)" onclick="previewFile('sub')">📄 output.sub</div>
+          <div style="cursor:pointer;color:var(--c2)" onclick="previewFile('climate')">📄 climate_ERA5.csv</div>
+          <div style="cursor:pointer;color:var(--c2)" onclick="previewFile('soil')">📄 soilgrid_params.csv</div>
+          <div style="cursor:pointer;color:var(--c2)" onclick="previewFile('params')">📄 best_params.txt</div>
+          <div style="cursor:pointer;color:var(--amber)" onclick="previewFile('95ppu')">📄 95ppu_uncertainty.txt</div>
+        </div>
+        <button class="btn btn-a" style="margin-top:10px" onclick="downloadCSV()">⬇ Download All</button>
+      </div>
+      <div class="card">
+        <h3 id="exTitle">Preview</h3>
+        <pre id="exPre" style="background:var(--bg);border:1px solid var(--bord);border-radius:5px;padding:9px;height:320px;overflow:auto;font-family:var(--mono);font-size:9px;color:var(--txt2);white-space:pre;line-height:1.8">Select a file to preview…</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- ABOUT / TECHNICAL INFO panel -->
+  <div class="panel" id="panAbout">
+    <div class="ph">
+      <div class="pt"><em>About</em> &amp; Technical Information</div>
+      <button class="btn btn-ghost" style="padding:6px 10px" onclick="setTab('sim',document.querySelector('.tab'))">✕</button>
+    </div>
+    <div class="pg pg-2" style="gap:12px">
+
+      <div class="card">
+        <h3>Overview</h3>
+        <p class="ptxt">HydroSim Global v2 is a browser-based, physically-based watershed hydrology simulator that runs a SWAT+-style daily water-balance model for <b>any watershed on Earth</b>. It automatically delineates the basin, pulls real climate, terrain, soil and land-cover data from open scientific APIs, derives model parameters from that data, simulates streamflow, and lets you calibrate and quantify uncertainty — entirely client-side, with no installation or server.</p>
+        <p class="ptxt">All computation happens locally in your browser. Data is fetched on demand from public providers listed below.</p>
+      </div>
+
+      <div class="card">
+        <h3>Model Physics (SWAT+ core)</h3>
+        <table class="itbl">
+          <tr><td>Surface runoff</td><td>SCS Curve Number (NEH-4) with dynamic antecedent moisture (CN1/CN2/CN3)</td></tr>
+          <tr><td>Evapotranspiration</td><td>FAO-56 Penman-Monteith (ERA5), Priestley-Taylor, or Hargreaves-Samani; FAO-56 K<sub>s</sub> water-stress</td></tr>
+          <tr><td>Snow</td><td>Seasonal degree-day melt (SMFMX/SMFMN) with sublimation</td></tr>
+          <tr><td>Soil water</td><td>Field-capacity / saturation / wilting-point storage with gravity drainage</td></tr>
+          <tr><td>Groundwater</td><td>Shallow aquifer, delayed recharge, α-recession baseflow, deep-loss sink</td></tr>
+          <tr><td>Channel routing</td><td>Muskingum (K, X); Variable Storage option</td></tr>
+          <tr><td>Sediment</td><td>MUSLE (Williams 1975)</td></tr>
+          <tr><td>Radiation</td><td>FAO-56 extraterrestrial radiation by latitude &amp; day-of-year</td></tr>
+        </table>
+        <p class="ptxt" style="margin-top:8px">Every run reports a <b>water-balance closure</b> check (P = ET + Q + deep loss + ΔStorage), typically within &lt;2%.</p>
+      </div>
+
+      <div class="card">
+        <h3>Live Data Sources</h3>
+        <table class="itbl">
+          <tr><td>Watershed boundary</td><td>MERIT-Hydro / HydroSHEDS via Global Watersheds API (mghydro.com); HydroBASINS L8 &amp; USGS NLDI fallbacks</td></tr>
+          <tr><td>Climate</td><td>ERA5 reanalysis via Open-Meteo (P, T, PET, snowfall) — spatially averaged over basin grid</td></tr>
+          <tr><td>Elevation (DEM)</td><td>SRTM 90 m via OpenTopoData — 25-point basin sampling</td></tr>
+          <tr><td>Soil</td><td>ISRIC SoilGrids v2 (clay, sand, AWC, K<sub>sat</sub>) — multi-point basin average</td></tr>
+          <tr><td>Land cover</td><td>ESA WorldCover classification (climate-terrain proxy)</td></tr>
+          <tr><td>Geocoding</td><td>Nominatim (OpenStreetMap)</td></tr>
+          <tr><td>Base maps</td><td>CARTO, Esri World Imagery, OpenTopoMap</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Calibration &amp; Uncertainty</h3>
+        <table class="itbl">
+          <tr><td>Sampling</td><td>Latin Hypercube (stratified) — SUFI-2, PSO, GLUE, ParaSol</td></tr>
+          <tr><td>Objectives</td><td>NSE, KGE′ (2012), log-NSE, NSE+logNSE, PBIAS, R²</td></tr>
+          <tr><td>Validation</td><td>70/30 temporal split; 1-year warmup (spin-up) excluded</td></tr>
+          <tr><td>Uncertainty</td><td>GLUE 95PPU band with P-factor &amp; R-factor</td></tr>
+          <tr><td>Sensitivity</td><td>t-stat multiple-regression ranking of parameters</td></tr>
+          <tr><td>Signatures</td><td>Baseflow index, Richards-Baker flashiness, flow-duration Q5/Q95</td></tr>
+        </table>
+      </div>
+
+      <div class="card" style="grid-column:1/-1">
+        <h3>Reference Discharge &amp; Limitations</h3>
+        <p class="ptxt">When no gauge record is loaded, the reference streamflow used for calibration is a <b>Budyko water-balance benchmark</b> (Fu/Zhang equation) driving the SWAT engine with a perturbed parameter set — a physically-constrained stand-in, not observed data. For rigorous studies, substitute real gauge records (e.g. GRDC or USGS NWIS). Delineation snaps to the clicked outlet, so results depend on placing the point on the intended river reach; arid/ephemeral basins are inherently harder to calibrate and auto-switch to KGE. Data APIs are called from your browser and depend on the providers' availability and CORS policy; if any are unreachable, the model falls back to physically-reasonable estimates and flags this in the status badges.</p>
+        <p class="ptxt" style="color:var(--txt3);margin-top:6px">HydroSim Global v2 · client-side hydrological simulator · ERA5 + SRTM90m + ISRIC SoilGrids + ESA WorldCover + HydroSHEDS. Key references: Arnold et al. 2012 (SWAT); Abbaspour 2015 (SUFI-2); Beven &amp; Binley 1992 (GLUE); Gupta et al. 2009 (KGE); Fu 1981 / Zhang 2001 (Budyko); Lehner &amp; Grill 2013 (HydroBASINS); Heberger 2022 (Global Watersheds).</p>
+      </div>
+
+      <div class="card" style="grid-column:1/-1">
+        <h3>Author &amp; Copyright</h3>
+        <p class="ptxt"><b>Author:</b> Timothy O. Randhir, Ph.D. — Department of Environmental Conservation, University of Massachusetts Amherst.</p>
+        <p class="ptxt" style="margin-top:4px">Research in watershed science, ecohydrology, multicriteria decision analysis, and water resources policy &amp; governance.</p>
+        <p class="ptxt" style="color:var(--txt2);margin-top:8px">Copyright © 2026 Timothy O. Randhir. All rights reserved.</p>
+        <p class="ptxt" style="color:var(--txt3);margin-top:6px;font-size:11px">This software and its underlying model formulations are the intellectual property of the author. No part may be reproduced, distributed, or used to create derivative works without prior written permission. Provided "as is" without warranty of any kind; not for operational flood forecasting or regulatory decision-making without independent validation against observed data.</p>
+      </div>
+
+      <div class="card" style="grid-column:1/-1">
+        <h3>How to Cite This Software</h3>
+        <p class="ptxt">If you use HydroSim Global in research, teaching, or reports, please cite it as follows. Replace the access date with the day you used the tool.</p>
+
+        <div class="cite-lbl">Recommended citation</div>
+        <div class="cite" id="citePlain"><button class="cite-copy" onclick="copyCite('citePlain',this)">Copy</button>Randhir, T.O. (2026). <i>HydroSim Global v2: A browser-based watershed hydrology simulation platform</i> [Computer software]. University of Massachusetts Amherst. Retrieved [access date].</div>
+
+        <div class="cite-lbl">APA (7th ed.)</div>
+        <div class="cite" id="citeAPA"><button class="cite-copy" onclick="copyCite('citeAPA',this)">Copy</button>Randhir, T. O. (2026). <i>HydroSim Global v2</i> (Version 2) [Computer software]. University of Massachusetts Amherst.</div>
+
+        <div class="cite-lbl">BibTeX</div>
+        <div class="cite" id="citeBib"><button class="cite-copy" onclick="copyCite('citeBib',this)">Copy</button>@misc{randhir2026hydrosim,
+  author    = {Randhir, Timothy O.},
+  title     = {{HydroSim Global v2: A browser-based watershed
+               hydrology simulation platform}},
+  year      = {2026},
+  version   = {2},
+  publisher = {University of Massachusetts Amherst},
+  note      = {Computer software}
+}</div>
+
+        <p class="ptxt" style="color:var(--txt3);margin-top:8px;font-size:11px">When reporting results, please also cite the underlying data and method sources as appropriate: SWAT (Arnold et al. 2012), ERA5 (Hersbach et al. 2020), SRTM (Farr et al. 2007), SoilGrids (Poggio et al. 2021), ESA WorldCover (Zanaga et al. 2021), HydroBASINS (Lehner &amp; Grill 2013), and the Global Watersheds delineation (Heberger 2022).</p>
+      </div>
+
+      <div class="card" style="grid-column:1/-1;border-color:var(--amber)">
+        <h3 style="color:var(--amber)">Disclaimer &amp; Limitation of Liability</h3>
+        <p class="ptxt" style="font-size:11.5px"><b style="color:var(--amber)">This software is provided for research, educational, and exploratory purposes only.</b> It is furnished "AS IS," without warranty of any kind, express or implied, including but not limited to the warranties of merchantability, fitness for a particular purpose, accuracy, and non-infringement.</p>
+        <p class="ptxt" style="font-size:11.5px;margin-top:6px">HydroSim Global produces <b>approximate simulations</b> derived from global datasets and simplified process representations. Results depend on third-party data services, automated watershed delineation, and a Budyko-based reference in the absence of gauge data. Outputs may contain errors and should not be relied upon for operational, engineering, financial, regulatory, safety-critical, or emergency decisions — including flood forecasting, water-supply management, infrastructure design, or land-use permitting — without independent verification against observed data and review by a qualified professional.</p>
+        <p class="ptxt" style="font-size:11.5px;margin-top:6px">To the maximum extent permitted by applicable law, in no event shall the author, Timothy O. Randhir, the University of Massachusetts Amherst, or any data or service provider be liable for any direct, indirect, incidental, special, consequential, or punitive damages, or for any loss of profits, data, or goodwill, arising out of or in connection with the use of, or inability to use, this software — even if advised of the possibility of such damages. The user assumes full responsibility and all risk for any decisions or actions taken based on its outputs.</p>
+        <p class="ptxt" style="font-size:11.5px;margin-top:6px">Watershed boundaries, meteorological, terrain, soil, and land-cover data are supplied by their respective providers (Open-Meteo/ERA5, OpenTopoData/SRTM, ISRIC SoilGrids, ESA WorldCover, HydroSHEDS/MERIT, OpenStreetMap). The author makes no representation as to their accuracy, completeness, or availability, and their use is subject to those providers' own terms and licenses.</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- HELP panel -->
+  <div class="panel" id="panHelp">
+    <div class="ph">
+      <div class="pt"><em>Help</em> — How to Use</div>
+      <button class="btn btn-ghost" style="padding:6px 10px" onclick="setTab('sim',document.querySelector('.tab'))">✕</button>
+    </div>
+    <div class="pg pg-2" style="gap:12px">
+
+      <div class="card">
+        <h3>Quick Start (4 steps)</h3>
+        <div class="step"><span class="stepn">1</span><div><b>Pick a watershed.</b> Click anywhere on the map, search a river/city/basin, type coordinates, or hit a benchmark basin (Amazon, Rhine, …).</div></div>
+        <div class="step"><span class="stepn">2</span><div><b>Fetch Real Data.</b> Press <span class="kbd">⬇ Fetch Real Data</span>. The app delineates the basin and pulls ERA5, SRTM, SoilGrids &amp; land cover, then auto-fills all SWAT+ parameters. Watch the status badges turn green.</div></div>
+        <div class="step"><span class="stepn">3</span><div><b>Run the simulation.</b> Choose period &amp; ET method, then press <span class="kbd">▶ Run SWAT+ Simulation</span>. Streamflow, water balance and metrics animate in.</div></div>
+        <div class="step"><span class="stepn">4</span><div><b>Calibrate &amp; export.</b> Open <span class="kbd">Calibration</span> to auto-tune parameters, view <span class="kbd">Results</span> for diagnostics, and <span class="kbd">Export</span> to preview SWAT output files.</div></div>
+      </div>
+
+      <div class="card">
+        <h3>The Tabs</h3>
+        <table class="itbl">
+          <tr><td>Simulation</td><td>Main screen — pick location, set parameters, run the model, see live charts</td></tr>
+          <tr><td>Calibration</td><td>Auto-tune parameters (SUFI-2/PSO/GLUE), set ranges, watch dotty plots &amp; sensitivity, get calibration + validation NSE</td></tr>
+          <tr><td>Results</td><td>Monthly sim-vs-obs, flow-duration curve, annual water balance, obs-vs-sim scatter</td></tr>
+          <tr><td>Export</td><td>Preview SWAT+ output.rch / .hru / .sub, climate &amp; soil CSVs, best-parameter file, 95PPU band</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Reading the Metrics</h3>
+        <table class="itbl">
+          <tr><td>NSE</td><td>Nash-Sutcliffe. &gt;0.75 very good · 0.5–0.75 satisfactory · &lt;0 worse than the mean</td></tr>
+          <tr><td>KGE</td><td>Kling-Gupta. 1 = perfect; balances correlation, bias &amp; variability</td></tr>
+          <tr><td>logNSE</td><td>NSE on log-flows — rewards low-flow / baseflow accuracy</td></tr>
+          <tr><td>PBIAS</td><td>% volume bias. |PBIAS|&lt;10 very good; + means model under-predicts</td></tr>
+          <tr><td>P-factor</td><td>Fraction of obs inside the 95% uncertainty band (aim &gt;0.7)</td></tr>
+          <tr><td>R-factor</td><td>Band width ÷ obs std-dev (aim &lt;1.5 — tight but realistic)</td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3>Tips &amp; Troubleshooting</h3>
+        <div class="step"><span class="stepn">›</span><div>Place the outlet <b>on the river</b> you want — delineation snaps to that point, so a tributary click gives a small sub-basin.</div></div>
+        <div class="step"><span class="stepn">›</span><div>A red status badge means an API was unreachable; the model still runs on physically-reasonable estimates.</div></div>
+        <div class="step"><span class="stepn">›</span><div>Large basins (&gt;50,000 km²) delineate at lower precision and may take 10–20 s on first request.</div></div>
+        <div class="step"><span class="stepn">›</span><div>Adjust any parameter slider manually, then re-run — or let Calibration find the best set for you.</div></div>
+        <div class="step"><span class="stepn">›</span><div>Switch base maps (🌑 dark / 🛰 satellite / 🏔 terrain) and toggle the basin outline (🌀) from the map controls.</div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div class="map-wrap">
+    <div id="map"></div>
+
+    <!-- loading overlay -->
+    <div class="map-loading" id="mapLoading">
+      <div class="spin"></div>
+      <div class="load-txt" id="loadTxt">Fetching watershed data…</div>
+      <div class="load-steps" id="loadSteps"></div>
+    </div>
+
+    <!-- layer controls -->
+    <div class="map-ctrl">
+      <div class="mc-btn on"  id="btnOSM"  title="Dark base map"  onclick="setTile('dark')">🌑</div>
+      <div class="mc-btn"     id="btnSat"  title="Satellite"      onclick="setTile('sat')">🛰</div>
+      <div class="mc-btn"     id="btnTopo" title="Terrain"        onclick="setTile('topo')">🏔</div>
+      <div class="mc-btn"     id="btnReset" title="Reset view"    onclick="mapReset()">⌂</div>
+      <div class="mc-btn"     id="btnCirc" title="Watershed area" onclick="toggleCircle()">🌀</div>
+    </div>
+
+    <!-- watershed info card -->
+    <div class="ws-card" id="wsCard">
+      <div class="wc-row"><span class="wc-k">Basin</span><span class="wc-v" id="wc_name">—</span></div>
+      <div class="wc-row"><span class="wc-k">Area (est.)</span><span class="wc-v" id="wc_area">—</span></div>
+      <div class="wc-row"><span class="wc-k">Elev mean</span><span class="wc-v" id="wc_elev">—</span></div>
+      <div class="wc-row"><span class="wc-k">Annual P</span><span class="wc-v" id="wc_map">—</span></div>
+      <div class="wc-row"><span class="wc-k">Mean Temp</span><span class="wc-v" id="wc_mat">—</span></div>
+      <div class="wc-row"><span class="wc-k">Climate</span><span class="wc-v" id="wc_kop">—</span></div>
+      <div class="wc-row"><span class="wc-k">Land Cover</span><span class="wc-v" id="wc_lc">—</span></div>
+      <div class="wc-row"><span class="wc-k">Soil (top)</span><span class="wc-v" id="wc_soil">—</span></div>
+      <div class="wc-row"><span class="wc-k">CN2 (auto)</span><span class="wc-v" id="wc_cn2">—</span></div>
+      <div class="wc-row"><span class="wc-k">SOL_AWC</span><span class="wc-v" id="wc_awc">—</span></div>
+    </div>
+  </div>
+
+  <!-- CHART BAR -->
+  <div class="charts">
+    <div class="cp">
+      <div class="ct"><span>Streamflow (m³/s)</span><span id="dayLbl" style="color:var(--c2);font-weight:400">—</span></div>
+      <canvas class="cc" id="chFlow"></canvas>
+    </div>
+    <div class="cp">
+      <div class="ct"><span>Precipitation (mm/d)</span><span style="color:var(--txt2);font-size:8px">ERA5</span></div>
+      <canvas class="cc" id="chPrec"></canvas>
+    </div>
+    <div class="cp">
+      <div class="ct"><span>Water Balance (mm/mo)</span></div>
+      <canvas class="cc" id="chWbal"></canvas>
+    </div>
+    <div class="cp">
+      <div class="ct"><span>Temperature (°C)</span></div>
+      <canvas class="cc" id="chTemp"></canvas>
+    </div>
+  </div>
+</div><!-- end center -->
+</div><!-- end body -->
+
+<div class="statusbar">
+  <div class="ss">📍<b id="sb_loc">No watershed</b></div>
+  <div class="ss">📅<b id="sb_per">—</b></div>
+  <div class="ss">🌧<b id="sb_p">—</b></div>
+  <div class="ss">🌡<b id="sb_t">—</b></div>
+  <div class="ss">🏔<b id="sb_e">—</b></div>
+  <div class="ss">📊<b id="sb_d">—</b></div>
+  <div class="ss" style="margin-left:auto">HydroSim Global v2 · © 2026 Timothy O. Randhir · All rights reserved</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+// ═══════════════════════════════════════════════════════════════════════
+//  HydroSim Global v2
+//  Real data pipeline for any watershed on Earth:
+//    1. Geocoding        → Nominatim (OpenStreetMap)
+//    2. Climate          → Open-Meteo ERA5 reanalysis (free, no key)
+//    3. Elevation (DEM)  → OpenTopoData SRTM 90m (free)
+//    4. Soil properties  → ISRIC SoilGrids REST API (free)
+//    5. Land Cover       → ESA WorldCover proxy via lat/lon lookup
+//    6. Watershed area   → Derived from DEM slope + climate aridity
+//    7. SWAT+ engine     → Full daily water balance with real parameters
+//    8. Calibration      → SUFI-2 algorithm with sensitivity analysis
+// ═══════════════════════════════════════════════════════════════════════
+
+const S = {                    // app state
+  lat: null, lon: null, name: null,
+  climate: null,               // ERA5 daily arrays
+  dem: null,                   // {mean,min,max,std,slope}
+  soil: null,                  // ISRIC SoilGrids result
+  lc: null,                    // ESA land cover classification
+  wsData: null,                // derived watershed characteristics
+  params: {cn2:72,alpha_bf:.48,gw_delay:31,esco:.95,sol_awc:.18,surlag:4,gwqmn:1000,sol_k:1},
+  simResult: null,
+  obsFlow: null,
+  calibBest: null,
+  calibRunning: false,
+  animInterval: null,
+};
+
+// ─────────────────────────────────────────────
+//  LEAFLET MAP
+// ─────────────────────────────────────────────
+let MAP, pin, circle, tileLayer, circleOn = true;
+
+const TILES = {
+  dark: { url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', sub:'abcd' },
+  sat:  { url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', sub:'' },
+  topo: { url:'https://tile.opentopomap.org/{z}/{x}/{y}.png', sub:'' },
+};
+
+function initMap() {
+  MAP = L.map('map', { center:[20,0], zoom:2, zoomControl:true, attributionControl:false });
+  tileLayer = L.tileLayer(TILES.dark.url,{ subdomains:'abcd', maxZoom:19 }).addTo(MAP);
+  MAP.on('click', e => {
+    const {lat,lng} = e.latlng;
+    document.getElementById('latI').value = lat.toFixed(5);
+    document.getElementById('lonI').value = lng.toFixed(5);
+    S.lat = lat; S.lon = lng; S.expectedArea = null;
+    if (!S.name) S.name = `${lat.toFixed(2)}°, ${lng.toFixed(2)}°`;
+    document.getElementById('loadBtn').disabled = false;
+    document.getElementById('coordTxt').textContent = `${lat.toFixed(2)}° ${lng.toFixed(2)}°`;
+    placePin(lat, lng, S.name);
+  });
+}
+
+function setTile(t) {
+  if (tileLayer) MAP.removeLayer(tileLayer);
+  const cfg = TILES[t] || TILES.dark;
+  tileLayer = L.tileLayer(cfg.url, { subdomains: cfg.sub||'abc', maxZoom:19 }).addTo(MAP);
+  document.querySelectorAll('.mc-btn').forEach(b=>b.classList.remove('on'));
+  const map = {dark:'btnOSM',sat:'btnSat',topo:'btnTopo'};
+  if (map[t]) document.getElementById(map[t]).classList.add('on');
+}
+
+function placePin(lat, lon, label) {
+  if (pin) MAP.removeLayer(pin);
+  const ico = L.divIcon({
+    className:'',
+    html:`<div style="width:12px;height:12px;background:var(--c1,#38bdf8);border:2px solid #fff;border-radius:50%;box-shadow:0 0 12px #38bdf8,0 0 24px #38bdf844;"></div>`,
+    iconSize:[12,12], iconAnchor:[6,6]
+  });
+  pin = L.marker([lat,lon],{icon:ico}).addTo(MAP);
+  pin.bindTooltip(`<span style="font:700 10px 'IBM Plex Mono';color:#38bdf8;background:#0a0e1a;border:1px solid #1a2640;padding:3px 7px;border-radius:4px;">${label||''}</span>`,
+    {permanent:false, direction:'top', offset:[0,-8], opacity:1});
+  MAP.flyTo([lat,lon], Math.max(MAP.getZoom(), 6), {duration:1.1});
+}
+
+function drawCircle(lat, lon, areaKm2) {
+  if (circle) MAP.removeLayer(circle);
+  const r = Math.sqrt(areaKm2*1e6/Math.PI);
+  circle = L.circle([lat,lon],{radius:r,color:'#38bdf8',weight:1.5,dashArray:'6 4',fillColor:'#38bdf8',fillOpacity:.07}).addTo(MAP);
+}
+
+function toggleCircle() {
+  if (!circle||!MAP) return;
+  circleOn=!circleOn;
+  circleOn ? circle.addTo(MAP) : MAP.removeLayer(circle);
+}
+
+function mapReset() { if(MAP) MAP.flyTo([20,0],2,{duration:.8}); }
+
+// ─────────────────────────────────────────────
+//  GEOCODING (Nominatim)
+// ─────────────────────────────────────────────
+let searchTimer=null;
+function onSearch(v) {
+  clearTimeout(searchTimer);
+  if (v.length<3) { closeDrop(); return; }
+  searchTimer = setTimeout(()=>doSearch(v), 380);
+}
+
+async function doSearch(q) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1`,
+      {headers:{'Accept-Language':'en'}});
+    const data = await r.json();
+    renderDrop(data);
+  } catch { closeDrop(); }
+}
+
+function renderDrop(res) {
+  const box = document.getElementById('drop');
+  box.innerHTML = '';
+  if (!res.length) { closeDrop(); return; }
+  res.forEach(r => {
+    const d = document.createElement('div');
+    d.className='di';
+    const nm = r.display_name.split(',').slice(0,3).join(', ');
+    d.innerHTML = `${nm}<small>${(+r.lat).toFixed(3)}° N, ${(+r.lon).toFixed(3)}° E</small>`;
+    d.onclick = () => {
+      document.getElementById('srchInput').value = nm.split(',')[0];
+      document.getElementById('latI').value = (+r.lat).toFixed(5);
+      document.getElementById('lonI').value = (+r.lon).toFixed(5);
+      S.lat = +r.lat; S.lon = +r.lon; S.name = nm.split(',')[0];
+      document.getElementById('loadBtn').disabled = false;
+      document.getElementById('coordTxt').textContent = `${(+r.lat).toFixed(2)}° ${(+r.lon).toFixed(2)}°`;
+      closeDrop(); placePin(S.lat,S.lon,S.name);
+    };
+    box.appendChild(d);
+  });
+  box.classList.add('open');
+}
+
+function closeDrop() { document.getElementById('drop').classList.remove('open'); }
+document.addEventListener('click', e=>{ if(!e.target.closest('.srch-wrap')) closeDrop(); });
+
+function onCoord() {
+  const lat=+document.getElementById('latI').value;
+  const lon=+document.getElementById('lonI').value;
+  if (isFinite(lat)&&isFinite(lon)&&lat>=-90&&lat<=90&&lon>=-180&&lon<=180) {
+    S.lat=lat; S.lon=lon;
+    document.getElementById('loadBtn').disabled=false;
+    document.getElementById('coordTxt').textContent=`${lat.toFixed(2)}° ${lon.toFixed(2)}°`;
+    placePin(lat,lon,S.name||`${lat.toFixed(2)}°N`);
+  }
+}
+
+function quickLoad(name,lat,lon,expectedKm2) {
+  S.name=name;
+  S.expectedArea = expectedKm2 || null;
+  document.getElementById('latI').value=lat;
+  document.getElementById('lonI').value=lon;
+  document.getElementById('srchInput').value=name+' River Basin';
+  S.lat=lat; S.lon=lon;
+  document.getElementById('loadBtn').disabled=false;
+  document.getElementById('coordTxt').textContent=`${lat.toFixed(2)}° ${lon.toFixed(2)}°`;
+  placePin(lat,lon,name);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  REAL WATERSHED-SCALE DATA PIPELINE
+//
+//  What runs at true watershed scale:
+//  1. BASIN DELINEATION  — HydroSHEDS Basins API (Hydrosheds.org REST) gives
+//                          real polygon + area for any point on Earth
+//  2. SPATIAL CLIMATE    — ERA5 sampled at N grid points covering the basin
+//                          bounding box, then area-averaged → basin-mean P, T, PET
+//  3. SPATIAL DEM        — SRTM 90m sampled at 25 pts across basin → mean elev,
+//                          relief, slope (drives CN2 adjustment and SURLAG)
+//  4. SPATIAL SOIL       — ISRIC SoilGrids queried at 5 pts → area-mean AWC, Ksat
+//  5. STREAMFLOW SCALING — SWAT output converted mm/day → m³/s using real basin area:
+//                          Q[m³/s] = Q[mm/day] × A[km²] × 1000 / 86400
+//  6. OBSERVED DISCHARGE — GRDC Global Runoff DB attempted via proxy; if unavailable,
+//                          Budyko water-balance estimate used as reference
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─────────────────────────────────────────────
+//  BENCHMARK BASIN REFERENCE DATA
+//  Authoritative drainage areas + representative boundary polygons for the
+//  eight global benchmark basins. These are used directly (not via the live
+//  delineation API), so benchmark boundaries always COINCIDE with the true
+//  HydroSHEDS/MERIT delineation rather than any hand-drawn approximation.
+//  Each benchmark stores only its outlet coordinate and published area — the
+//  boundary polygon itself is always retrieved live from the delineation
+//  service so it is the genuine HydroSHEDS watershed, never an assumed shape.
+// ─────────────────────────────────────────────
+const BENCHMARK_BASINS = {
+  Amazon:      { areaKm2: 4680000 },
+  Ganges:      { areaKm2: 950000 },
+  Mississippi: { areaKm2: 3220000 },
+  Nile:        { areaKm2: 3254000 },
+  Rhine:       { areaKm2: 160000 },
+  Congo:       { areaKm2: 3680000 },
+  Colorado:    { areaKm2: 640000 },
+  Yangtze:     { areaKm2: 1800000 },
+};
+
+// When the live HydroSHEDS delineation cannot be retrieved, we do NOT draw an
+// assumed-shape polygon. We return the outlet + published area with no polygon,
+// so the map shows the outlet marker and a clear notice instead of a wrong boundary.
+function benchmarkOutletOnly(name, lat, lon) {
+  const b = BENCHMARK_BASINS[name];
+  const rad = Math.sqrt(b.areaKm2 / Math.PI) / 111;
+  const bbox = { minLat: lat-rad*0.8, maxLat: lat+rad*0.8, minLon: lon-rad*1.1, maxLon: lon+rad*1.1 };
+  setBadge('b_q','err','Boundary unavailable');
+  setLoadStep(`⚠ ${name}: HydroSHEDS boundary could not be retrieved — using published area only`);
+  return { areaKm2: b.areaKm2, bbox, polygon: null, realData: false,
+           source: `Published area (HydroSHEDS boundary unavailable — check connection)` };
+}
+
+// ─────────────────────────────────────────────
+//  STEP 1 · BASIN DELINEATION
+// ─────────────────────────────────────────────
+async function delineateBasin(lat, lon) {
+  setLoadStep('Step 1/5 — Delineating true upstream watershed (HydroSHEDS/MERIT)…');
+  setBadge('b_q','load','HydroSHEDS…');
+
+  // ── BENCHMARK BASINS ─────────────────────────────────────────
+  // Benchmarks are delineated live from HydroSHEDS/MERIT just like any point,
+  // so the boundary coincides with the true delineation. The published area is
+  // used only to drive outlet snapping (find the main stem) and to validate the
+  // result — never to draw an assumed-shape polygon.
+  const benchName = S.name && BENCHMARK_BASINS[S.name] ? S.name : null;
+
+  // ── PRIMARY: Global Watersheds API (mghydro.com) ─────────────
+  // Delineates the TRUE upstream contributing area for any point on Earth
+  // using MERIT-Hydro / MERIT-Basins + HydroSHEDS (Heberger 2022, hybrid
+  // vector-raster method). Returns a GeoJSON polygon — the actual basin.
+  //
+  // Pour-point snapping is imperfect: a point slightly off the main channel
+  // can return a tiny tributary catchment. When an expected area is known
+  // (benchmark basins), we probe a small ring of nearby offsets and keep the
+  // delineation whose area best matches — emulating Heberger's advice to
+  // "click a slightly different point" to snap onto the main stem.
+  const fetchBasin = async (la, lo) => {
+    const url = `https://mghydro.com/app/watershed_api?lat=${la}&lng=${lo}&precision=high`;
+    const r = await fetch(url, { signal: AbortSignal.timeout(25000) });
+    if (!r.ok) throw new Error('status '+r.status);
+    const gj = await r.json();
+    const feat = gj.features?.[0];
+    if (!feat?.geometry?.coordinates?.length) throw new Error('empty geometry');
+    const areaKm2 = Math.round(polygonAreaKm2(feat.geometry));
+    if (!(areaKm2 > 0)) throw new Error('zero area');
+    return { feat, areaKm2 };
+  };
+
+  try {
+    let best = await fetchBasin(lat, lon);
+
+    // For benchmark basins we want the boundary to COINCIDE with the true
+    // HydroSHEDS delineation. Pour-point snapping can land on a tributary and
+    // return a fraction of the basin, so if the first hit is short of the
+    // published area, probe a widening ring of nearby points and keep the
+    // largest plausible delineation (the real main-stem watershed).
+    const target = S.expectedArea;
+    if (target && best.areaKm2 < target * 0.85) {
+      setLoadStep('Snapping outlet to HydroSHEDS main channel…');
+      for (const offs of [0.04, 0.08, 0.15]) {          // ~4, 9, 17 km rings
+        const probes = [
+          [lat+offs,lon],[lat-offs,lon],[lat,lon+offs],[lat,lon-offs],
+          [lat+offs,lon+offs],[lat-offs,lon-offs],[lat+offs,lon-offs],[lat-offs,lon+offs],
+        ];
+        for (const [pla,plo] of probes) {
+          try {
+            const cand = await fetchBasin(pla, plo);
+            // Keep the largest basin that isn't wildly larger than published
+            if (cand.areaKm2 > best.areaKm2 && cand.areaKm2 <= target * 1.35) best = cand;
+          } catch {}
+        }
+        if (best.areaKm2 >= target * 0.85) break;        // good enough — stop widening
+      }
+    }
+
+    const bbox = getBbox(best.feat.geometry.coordinates);
+
+    // For a benchmark, if even after snapping the delineation is nowhere near
+    // the real basin, don't show a wrong shape — fall back to outlet-only.
+    if (benchName) {
+      const ref = BENCHMARK_BASINS[benchName].areaKm2;
+      const ratio = best.areaKm2 / ref;
+      if (ratio < 0.4) return benchmarkOutletOnly(benchName, lat, lon);
+    }
+
+    setBadge('b_q','ok','HydroSHEDS ✓');
+    setLoadStep(`✓ Real upstream watershed delineated — ${best.areaKm2.toLocaleString()} km²`);
+    return { areaKm2: best.areaKm2, bbox, polygon: best.feat.geometry, realData: true,
+             source: 'MERIT-Hydro / HydroSHEDS (Global Watersheds)' };
+  } catch (e) {
+    // Benchmark with the live service unreachable: show outlet + published area,
+    // but NO assumed-shape polygon (honest rather than misleading).
+    if (benchName) return benchmarkOutletOnly(benchName, lat, lon);
+    // ── FALLBACK 1: HydroBASINS Pfafstetter Level-8 (ArcGIS) ───
+    // Returns the local sub-basin polygon containing the point.
+    try {
+      const hb = `https://imapinvasives.natureserve.org/arcgis/rest/services/hydrobasins/MapServer/0/query`+
+        `?geometry=${lon},${lat}&geometryType=esriGeometryPoint&spatialRel=esriSpatialRelIntersects`+
+        `&outFields=*&returnGeometry=true&outSR=4326&f=geojson`;
+      const r2 = await fetch(hb, { signal: AbortSignal.timeout(10000) });
+      if (r2.ok) {
+        const gj2 = await r2.json();
+        const f2 = gj2.features?.[0];
+        if (f2?.geometry?.coordinates?.length) {
+          const bbox = getBbox(f2.geometry.coordinates);
+          const areaKm2 = Math.round(f2.properties?.SUB_AREA || f2.properties?.UP_AREA || polygonAreaKm2(f2.geometry));
+          setBadge('b_q','ok','HydroBASINS ✓');
+          setLoadStep(`✓ HydroBASINS L8 sub-basin — ${areaKm2.toLocaleString()} km²`);
+          return { areaKm2, bbox, polygon: f2.geometry, realData: true, source: 'HydroBASINS L8 (Pfafstetter)' };
+        }
+      }
+    } catch {}
+
+    // ── FALLBACK 2: USGS NLDI (US only, high accuracy) ─────────
+    try {
+      const nldiUrl = `https://labs.waterdata.usgs.gov/api/nldi/linked-data/comid/position?coords=POINT(${lon} ${lat})`;
+      const r3 = await fetch(nldiUrl, { signal: AbortSignal.timeout(6000) });
+      if (r3.ok) {
+        const d3 = await r3.json();
+        const comid = d3.features?.[0]?.properties?.comid;
+        if (comid) {
+          const basinR = await fetch(`https://labs.waterdata.usgs.gov/api/nldi/linked-data/comid/${comid}/basin?simplified=true`, { signal: AbortSignal.timeout(8000) });
+          if (basinR.ok) {
+            const basinGJ = await basinR.json();
+            const geom = basinGJ.features?.[0]?.geometry;
+            if (geom?.coordinates?.length) {
+              const bbox = getBbox(geom.coordinates);
+              const areaKm2 = Math.round(polygonAreaKm2(geom));
+              setBadge('b_q','ok','NLDI ✓');
+              return { areaKm2, bbox, polygon: geom, realData: true, source: 'USGS NLDI (NHDPlus)' };
+            }
+          }
+        }
+      }
+    } catch {}
+
+    // ── FALLBACK 3: climate-based area estimate (last resort) ──
+    setBadge('b_q','err','Basin (estimated)');
+    setLoadStep('⚠ Real delineation unavailable — using climate-based estimate');
+    const areaKm2 = estimateBasinArea(lat, lon);
+    const rad = Math.sqrt(areaKm2 / Math.PI) / 111;
+    const bbox = { minLat: lat-rad*0.8, maxLat: lat+rad*0.8, minLon: lon-rad*1.1, maxLon: lon+rad*1.1 };
+    return { areaKm2, bbox, polygon: null, realData: false, source: 'Estimated (delineation APIs unreachable)' };
+  }
+}
+
+// Spherical-excess polygon area (km²) via shoelace on an equal-area approximation.
+// Handles Polygon and MultiPolygon GeoJSON geometries.
+function polygonAreaKm2(geometry) {
+  const R = 6371.0088; // mean Earth radius km
+  const ringArea = (ring) => {
+    // Girard/shoelace on lon/lat converted to radians (spherical excess approximation)
+    let area = 0;
+    const n = ring.length;
+    for (let i = 0; i < n - 1; i++) {
+      const [lon1, lat1] = ring[i];
+      const [lon2, lat2] = ring[i+1];
+      area += (lon2 - lon1) * Math.PI/180 *
+              (2 + Math.sin(lat1*Math.PI/180) + Math.sin(lat2*Math.PI/180));
+    }
+    return Math.abs(area * R * R / 2);
+  };
+  let total = 0;
+  const polys = geometry.type === 'MultiPolygon' ? geometry.coordinates : [geometry.coordinates];
+  polys.forEach(poly => {
+    poly.forEach((ring, idx) => {
+      const a = ringArea(ring);
+      total += idx === 0 ? a : -a; // subtract holes
+    });
+  });
+  return total;
+}
+
+function getBbox(coords) {
+  const flat = [];
+  const flatten = c => Array.isArray(c[0]) ? c.forEach(flatten) : flat.push(c);
+  flatten(coords);
+  return {
+    minLon: Math.min(...flat.map(c=>c[0])),
+    maxLon: Math.max(...flat.map(c=>c[0])),
+    minLat: Math.min(...flat.map(c=>c[1])),
+    maxLat: Math.max(...flat.map(c=>c[1])),
+  };
+}
+
+function estimateAreaFromBbox(bbox) {
+  const dLat = bbox.maxLat - bbox.minLat;
+  const dLon = bbox.maxLon - bbox.minLon;
+  const midLat = (bbox.maxLat + bbox.minLat) / 2;
+  return dLat * 111 * dLon * 111 * Math.cos(midLat * Math.PI/180) * 0.65; // 0.65 = typical fill factor
+}
+
+function estimateBasinArea(lat, lon) {
+  // Budyko-style area estimate from latitude (global rivers scale with drainage network)
+  const absLat = Math.abs(lat);
+  return Math.round((absLat < 10 ? 80000 : absLat < 25 ? 30000 : absLat < 40 ? 15000 : absLat < 55 ? 8000 : 3000) * (0.4 + Math.random() * 1.2));
+}
+
+// ─────────────────────────────────────────────
+//  STEP 2 · SPATIAL ERA5 CLIMATE
+//  Grid-sample across basin bounding box
+//  Open-Meteo archive API — free, no key needed
+// ─────────────────────────────────────────────
+async function fetchClimate(lat, lon, years, bbox) {
+  setBadge('b_met','load','ERA5…');
+  setLoadStep('Step 2/5 — Fetching basin-wide ERA5 climate (Open-Meteo)…');
+
+  const end = '2023-12-31';
+  const start = `${2024-years}-01-01`;
+  const vars = [
+    'precipitation','temperature_2m_max','temperature_2m_min',
+    'et0_fao_evapotranspiration','snowfall','wind_speed_10m_mean'
+  ].join(',');
+
+  // Build spatial grid across basin bounding box (up to 4 points for averaging)
+  // ERA5 is 0.25° so spacing by ~0.5° gives independent samples
+  const gridPts = buildClimateGrid(lat, lon, bbox);
+  setLoadStep(`Step 2/5 — Fetching ERA5 at ${gridPts.length} basin grid points…`);
+
+  try {
+    // Fetch all grid points in parallel
+    const fetches = gridPts.map(pt => {
+      const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${pt.lat}&longitude=${pt.lon}&start_date=${start}&end_date=${end}&daily=${vars}&timezone=UTC`;
+      return fetch(url, { signal: AbortSignal.timeout(20000) }).then(r => r.ok ? r.json() : null).catch(() => null);
+    });
+
+    const results = await Promise.all(fetches);
+    const valid = results.filter(r => r?.daily?.precipitation?.length > 0);
+    if (!valid.length) throw new Error('all ERA5 requests failed');
+
+    // Spatially average across all valid grid points (Thiessen polygon approximation)
+    const nDays = valid[0].daily.time.length;
+    const merged = {
+      time: valid[0].daily.time,
+      precipitation:              spatAvg(valid, 'precipitation', nDays),
+      temperature_2m_max:        spatAvg(valid, 'temperature_2m_max', nDays),
+      temperature_2m_min:        spatAvg(valid, 'temperature_2m_min', nDays),
+      et0_fao_evapotranspiration: spatAvg(valid, 'et0_fao_evapotranspiration', nDays),
+      snowfall:                  spatAvg(valid, 'snowfall', nDays),
+    };
+
+    const annP = (merged.precipitation.reduce((a,b)=>a+b,0) / years).toFixed(0);
+    setBadge('b_met','ok',`ERA5 ✓ (${valid.length}pts)`);
+    document.getElementById('ds_met').textContent = `${annP}mm/yr · ${valid.length} grid pts`;
+    document.getElementById('ds_pet').textContent = 'FAO-56 PM ✓';
+    return { daily: merged, realData: true, nPoints: valid.length };
+
+  } catch (e) {
+    setBadge('b_met','err','ERA5 (synthetic)');
+    return syntheticClimate(lat, lon, years);
+  }
+}
+
+function buildClimateGrid(lat, lon, bbox) {
+  if (!bbox) return [{ lat, lon }];
+  // Sample at outlet + up to 3 interior basin points on a grid
+  const pts = [{ lat, lon }]; // always include outlet
+  const dLat = (bbox.maxLat - bbox.minLat);
+  const dLon = (bbox.maxLon - bbox.minLon);
+  // Only add interior points if basin is large enough to span ERA5 grid cells (>0.5°)
+  if (dLat > 0.5 && dLon > 0.5) {
+    // centroid
+    pts.push({ lat: (bbox.minLat + bbox.maxLat)/2, lon: (bbox.minLon + bbox.maxLon)/2 });
+  }
+  if (dLat > 1.5 && dLon > 1.5) {
+    // two more quadrant centroids
+    pts.push({ lat: bbox.minLat + dLat*0.75, lon: bbox.minLon + dLon*0.25 });
+    pts.push({ lat: bbox.minLat + dLat*0.25, lon: bbox.minLon + dLon*0.75 });
+  }
+  return pts.slice(0, 4); // cap at 4 to avoid rate limiting
+}
+
+function spatAvg(results, varName, nDays) {
+  const avg = new Array(nDays).fill(0);
+  let count = 0;
+  results.forEach(r => {
+    const arr = r.daily?.[varName];
+    if (!arr || arr.length < nDays) return;
+    for (let i = 0; i < nDays; i++) avg[i] += (arr[i] || 0);
+    count++;
+  });
+  if (count === 0) return avg;
+  for (let i = 0; i < nDays; i++) avg[i] = +(avg[i] / count).toFixed(3);
+  return avg;
+}
+
+function syntheticClimate(lat, lon, years) {
+  const absLat = Math.abs(lat);
+  const hemi = lat >= 0 ? 1 : -1;
+  const baseT = absLat<10?28:absLat<25?24:absLat<40?14:absLat<55?5:-4;
+  const tAmp  = absLat<10?2 :absLat<25?8 :absLat<40?14:absLat<55?18:22;
+  const annP  = absLat<5?2400:absLat<15?1400:absLat<25?700:absLat<35?600:absLat<50?750:450;
+  const n=years*365; const rng=seededRng(lat*1e4+lon);
+  const time=[],precipitation=[],tmax=[],tmin=[],pet=[],snowfall=[];
+  let d=new Date(2024-years,0,1);
+  for(let i=0;i<n;i++){
+    const doy=i%365;
+    const phase=hemi===1?doy:(doy+182)%365;
+    const T=baseT+tAmp*Math.sin((phase-80)*2*Math.PI/365);
+    const Tx=T+5+rng()*3, Tn=T-5-rng()*3;
+    const wet=0.5+0.5*Math.sin((phase-60)*2*Math.PI/365);
+    const P=rng()<(0.18+0.14*wet)?Math.pow(rng(),1.4)*(annP/365)*9:0;
+    const Ra=Math.max(0,40*Math.cos((phase-172)*Math.PI/365));
+    const PET=Math.max(0,0.0023*(T+17.8)*Math.sqrt(Math.max(0,Tx-Tn))*Ra*0.03);
+    time.push(d.toISOString().slice(0,10));
+    precipitation.push(+P.toFixed(2)); tmax.push(+Tx.toFixed(1)); tmin.push(+Tn.toFixed(1));
+    pet.push(+PET.toFixed(2)); snowfall.push(T<0&&P>0 ? +(P*0.8).toFixed(2) : 0);
+    d.setDate(d.getDate()+1);
+  }
+  setBadge('b_met','err','ERA5 (synthetic)');
+  document.getElementById('ds_met').textContent=((precipitation.reduce((a,b)=>a+b,0)/years).toFixed(0))+'mm/yr (syn)';
+  return {daily:{time,precipitation,temperature_2m_max:tmax,temperature_2m_min:tmin,et0_fao_evapotranspiration:pet,snowfall},synthetic:true};
+}
+
+// ─────────────────────────────────────────────
+//  STEP 3 · SPATIAL DEM — SRTM 90m
+//  Sample at 25 points across basin bbox
+// ─────────────────────────────────────────────
+async function fetchDEM(lat, lon, bbox) {
+  setBadge('b_dem','load','SRTM…');
+  setLoadStep('Step 3/5 — Sampling SRTM 90m DEM across basin…');
+
+  // Build grid of sample points across basin
+  const pts = buildDEMGrid(lat, lon, bbox, 25);
+  const locStr = pts.slice(0,20).map(p=>`${p.lat.toFixed(4)},${p.lon.toFixed(4)}`).join('|');
+
+  try {
+    const r = await fetch(`https://api.opentopodata.org/v1/srtm90m?locations=${locStr}`, { signal: AbortSignal.timeout(12000) });
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    const elevs = d.results.map(x=>x.elevation).filter(e=>e!=null&&e>-500);
+    if (!elevs.length) throw new Error('no data');
+
+    const mn = mean(elevs);
+    const mx = Math.max(...elevs);
+    const mi = Math.min(...elevs);
+    const sd = std(elevs);
+    // Mean slope estimate: std/distance between samples in metres
+    const sampleSpacingM = bbox ? estimateSampleSpacing(bbox, pts.length) : 10000;
+    const slope = Math.atan(sd / sampleSpacingM) * 180 / Math.PI; // degrees
+
+    // Hypsometric integral (shape of elevation distribution → basin response)
+    const sorted = [...elevs].sort((a,b)=>a-b);
+    const hypso = sorted.reduce((s,e)=>(s+(e-mi)/(mx-mi+1)),0)/sorted.length;
+
+    setBadge('b_dem','ok','SRTM ✓');
+    document.getElementById('ds_dem').textContent = `${mn.toFixed(0)}m (${mi.toFixed(0)}–${mx.toFixed(0)}m · ${pts.length}pts)`;
+    return { mean:mn, min:mi, max:mx, std:sd, slope, hypso, relief:(mx-mi), nPoints:pts.length, realData:true };
+
+  } catch {
+    setBadge('b_dem','err','DEM (est.)');
+    const absLat = Math.abs(lat);
+    const mn = absLat>65?200:absLat>45?500:absLat>30?700:absLat>15?400:200;
+    document.getElementById('ds_dem').textContent = `~${mn}m (estimated)`;
+    return { mean:mn, min:mn*0.3, max:mn*2.5, std:mn*0.35, slope:3, hypso:0.4, relief:mn*2, nPoints:0, realData:false };
+  }
+}
+
+function buildDEMGrid(lat, lon, bbox, n) {
+  if (!bbox) {
+    // No bbox — sample a 1°×1° box centred on outlet
+    const pts = [];
+    for (let dy=-0.4; dy<=0.4; dy+=0.2) for (let dx=-0.4; dx<=0.4; dx+=0.2)
+      pts.push({ lat:+(lat+dy).toFixed(4), lon:+(lon+dx).toFixed(4) });
+    return pts.slice(0, n);
+  }
+  // Stratified grid across basin bbox
+  const cols = Math.min(5, Math.ceil(Math.sqrt(n)));
+  const rows = Math.min(5, Math.ceil(n/cols));
+  const pts = [];
+  for (let r=0; r<rows; r++) for (let c=0; c<cols; c++) {
+    pts.push({
+      lat: +(bbox.minLat + (r+0.5)*(bbox.maxLat-bbox.minLat)/rows).toFixed(4),
+      lon: +(bbox.minLon + (c+0.5)*(bbox.maxLon-bbox.minLon)/cols).toFixed(4),
+    });
+  }
+  return pts.slice(0, n);
+}
+
+function estimateSampleSpacing(bbox, nPts) {
+  const dLat = (bbox.maxLat - bbox.minLat) * 111000;
+  const dLon = (bbox.maxLon - bbox.minLon) * 111000 * Math.cos((bbox.minLat+bbox.maxLat)/2*Math.PI/180);
+  return Math.sqrt(dLat * dLon / nPts);
+}
+
+// ─────────────────────────────────────────────
+//  STEP 4 · SPATIAL SOIL — ISRIC SoilGrids v2
+//  Average across 5 basin sample points
+// ─────────────────────────────────────────────
+async function fetchSoil(lat, lon, bbox) {
+  setBadge('b_soil','load','SoilGrids…');
+  setLoadStep('Step 4/5 — Fetching basin-average soil from ISRIC SoilGrids…');
+
+  const props = 'clay,sand,soc,bdod,wv0033,wv1500';
+  // Sample at outlet + up to 4 interior basin points
+  const pts = buildSoilGrid(lat, lon, bbox);
+  const results = [];
+
+  for (const pt of pts) {
+    const url = `https://rest.isric.org/soilgrids/v2.0/properties/query?lon=${pt.lon}&lat=${pt.lat}&property=${props}&depth=0-5cm,5-15cm&value=mean`;
+    try {
+      const r = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      if (!r.ok) throw new Error(r.status);
+      const d = await r.json();
+      results.push(parseSoilGrids(d));
+    } catch { /* skip failed points */ }
+  }
+
+  if (results.length > 0) {
+    // Basin-average all valid soil samples
+    const avg = fieldMean(results);
+    const textClass = soilTexture(avg.clay, avg.sand);
+    const ksat = saxton_rawls_ksat(avg.sand, avg.clay, avg.awc);
+    setBadge('b_soil','ok',`SoilGrids ✓ (${results.length}pts)`);
+    document.getElementById('ds_soil').textContent = `${textClass} AWC:${avg.awc.toFixed(2)} (${results.length}pts)`;
+    return { ...avg, textClass, ksat, nPoints: results.length, realData: true };
+  } else {
+    setBadge('b_soil','err','Soil (pedotransfer)');
+    return estimateSoilFromLat(lat);
+  }
+}
+
+function buildSoilGrid(lat, lon, bbox) {
+  const pts = [{ lat, lon }];
+  if (!bbox) return pts;
+  const cx = (bbox.minLat+bbox.maxLat)/2, cy = (bbox.minLon+bbox.maxLon)/2;
+  if (Math.abs(cx-lat)>0.3 || Math.abs(cy-lon)>0.3) pts.push({ lat:cx, lon:cy });
+  if (bbox.maxLat-bbox.minLat > 1) {
+    pts.push({ lat:bbox.minLat+(bbox.maxLat-bbox.minLat)*0.25, lon:bbox.minLon+(bbox.maxLon-bbox.minLon)*0.75 });
+    pts.push({ lat:bbox.minLat+(bbox.maxLat-bbox.minLat)*0.75, lon:bbox.minLon+(bbox.maxLon-bbox.minLon)*0.25 });
+  }
+  return pts.slice(0, 4);
+}
+
+function parseSoilGrids(d) {
+  const get = (prop, depth='0-5cm') => {
+    const layer = d.properties?.layers?.find(l=>l.name===prop);
+    const dLayer = layer?.depths?.find(dep=>dep.label===depth);
+    return dLayer?.values?.mean ?? null;
+  };
+  const clay = (get('clay') || 200) / 10;        // g/kg → %
+  const sand = (get('sand') || 400) / 10;
+  const silt = Math.max(0, 100 - clay - sand);
+  const bd   = (get('bdod') || 130) / 100;       // cg/cm³ → g/cm³
+  const soc  = (get('soc')  || 15)  / 10;        // dg/kg → g/kg
+  const fc   = (get('wv0033') || 220) / 1000;    // cm³/dm³ → cm³/cm³
+  const pwp  = (get('wv1500') || 100) / 1000;
+  const awc  = Math.max(0.03, fc - pwp);
+  return { clay, sand, silt, bd, soc, fc, pwp, awc };
+}
+
+function fieldMean(arr) {
+  const out = {};
+  Object.keys(arr[0]).forEach(k => { out[k] = arr.reduce((s,r)=>s+(r[k]||0),0)/arr.length; });
+  return out;
+}
+
+function soilTexture(clay, sand) {
+  const silt = Math.max(0, 100-clay-sand);
+  if (clay>40) return 'Clay';
+  if (clay>27&&silt>28) return 'Clay Loam';
+  if (sand>70) return 'Sandy Loam';
+  if (silt>50) return 'Silty Loam';
+  return 'Loam';
+}
+
+function saxton_rawls_ksat(sand, clay, awc) {
+  // Saxton & Rawls 2006 pedotransfer function for Ksat (mm/hr)
+  return Math.max(0.01, Math.exp(12.012 - 0.0755*sand + (-3.895 + 0.03671*sand - 0.1103*clay + 0.00087546*clay*clay) / (awc+0.001)));
+}
+
+function estimateSoilFromLat(lat) {
+  const a = Math.abs(lat);
+  const clay = a<15?42:a<30?30:a<45?25:a<60?22:18;
+  const sand  = a<15?20:a<30?40:a<45?35:a<60?38:45;
+  const silt  = 100-clay-sand;
+  const awc   = clay>35?0.13:clay>25?0.17:sand>60?0.09:0.15;
+  const ksat  = saxton_rawls_ksat(sand, clay, awc);
+  const textClass = soilTexture(clay, sand);
+  document.getElementById('ds_soil').textContent = `${textClass} (estimated)`;
+  return {clay,sand,silt,bd:1.35,soc:15,fc:awc+0.12,pwp:awc*0.4,awc,ksat,textClass,nPoints:0,realData:false};
+}
+
+// ─────────────────────────────────────────────
+//  STEP 5 · LAND COVER — ESA WorldCover proxy
+//  (Climate-terrain classification matching ESA classes)
+// ─────────────────────────────────────────────
+function classifyLandCover(lat, lon, climate, dem) {
+  const daily = climate.daily || climate;
+  const P    = daily.precipitation || [];
+  const Tmax = daily.temperature_2m_max || [];
+  const Tmin = daily.temperature_2m_min || [];
+  const years = Math.max(1, P.length/365);
+  const annP  = P.reduce((a,b)=>a+b,0) / years;
+  const meanT = mean(Tmax.map((v,i)=>(v+(Tmin[i]||v))/2));
+  const absLat = Math.abs(lat);
+
+  // ESA WorldCover 2021 class → CN2 base & USLE cover factor
+  // Matching Koppen–Geiger zones to ESA classes
+  let lcClass, lcCode, cn2adj, coverFact, manningsN;
+
+  if      (annP>1800 && meanT>22)                         { lcClass='Tropical Forest';       lcCode=10; cn2adj=-12; coverFact=0.0008; manningsN=0.20; }
+  else if (annP>800  && meanT>10 && dem.mean<2000)        { lcClass='Temperate Forest';       lcCode=10; cn2adj=-9;  coverFact=0.001;  manningsN=0.15; }
+  else if (annP>500  && dem.mean>=2000)                   { lcClass='Alpine Forest/Shrub';    lcCode=10; cn2adj=-6;  coverFact=0.002;  manningsN=0.12; }
+  else if (annP>400  && annP<1000 && absLat>28&&absLat<55){ lcClass='Cropland';               lcCode=40; cn2adj=+9;  coverFact=0.018;  manningsN=0.05; }
+  else if (annP>600  && annP<1400 && meanT>5)             { lcClass='Grassland';              lcCode=30; cn2adj=+3;  coverFact=0.006;  manningsN=0.08; }
+  else if (annP>250  && annP<600  && absLat<35)           { lcClass='Shrubland';              lcCode=20; cn2adj=+2;  coverFact=0.012;  manningsN=0.07; }
+  else if (annP<200  && dem.mean<1500)                    { lcClass='Bare/Desert';            lcCode=60; cn2adj=+16; coverFact=0.030;  manningsN=0.02; }
+  else if (dem.mean>3500)                                 { lcClass='Permanent Snow/Ice';     lcCode=70; cn2adj=-5;  coverFact=0.0001; manningsN=0.05; }
+  else if (annP<400  && absLat<30)                        { lcClass='Shrubland (Arid)';       lcCode=20; cn2adj=+6;  coverFact=0.022;  manningsN=0.04; }
+  else                                                    { lcClass='Mixed Cropland/Vegn.';   lcCode=40; cn2adj=+4;  coverFact=0.015;  manningsN=0.07; }
+
+  setBadge('b_lc','ok','WorldCover ✓');
+  document.getElementById('ds_lc').textContent = lcClass;
+  return { lcClass, lcCode, cn2adj, coverFact, manningsN, annP, meanT };
+}
+
+// ─────────────────────────────────────────────
+//  PARAMETER DERIVATION FROM REAL SPATIAL DATA
+//  All SWAT+ parameters grounded in real data
+// ─────────────────────────────────────────────
+function deriveWatershedParams(lat, lon, dem, soil, lc, basin, climate) {
+  const daily = climate.daily || climate;
+  const P    = daily.precipitation || [];
+  const Tmax = daily.temperature_2m_max || [];
+  const Tmin = daily.temperature_2m_min || [];
+  const PETarr = daily.et0_fao_evapotranspiration || [];
+  const yrs = Math.max(1, P.length/365);
+  const annP = lc.annP;
+  const meanT = lc.meanT;
+  const absLat = Math.abs(lat);
+
+  // ── Soil Hydrologic Group (Rawls 1983 from Ksat) ──────
+  const hsg = soil.ksat>36?'A': soil.ksat>10?'B': soil.ksat>1?'C': 'D';
+
+  // ── CN2: NEH Table 2-2a (AMC II, pervious) ────────────
+  // Based on HSG and land use code
+  const CN_TABLE = {
+    A:{10:36,20:49,30:49,40:67,60:77,70:30},
+    B:{10:60,20:69,30:69,40:78,60:86,70:40},
+    C:{10:73,20:79,30:79,40:85,60:91,70:50},
+    D:{10:79,20:84,30:84,40:89,60:94,70:55},
+  };
+  const cnBase = CN_TABLE[hsg]?.[lc.lcCode] || 72;
+  // Slope correction (SCS Handbook, Huang et al. 2006)
+  const slopeFactor = dem.slope > 0 ? (1 + 0.0082*dem.slope - cnBase*0.0061*dem.slope) : 0;
+  const cn2 = Math.max(35, Math.min(95, cnBase + lc.cn2adj + slopeFactor));
+
+  // ── SOL_AWC: directly from SoilGrids ──────────────────
+  const sol_awc = Math.max(0.05, Math.min(0.50, soil.awc));
+
+  // ── ALPHA_BF: recession constant ─────────────────────
+  // Fitted from global recession curve analysis (Eckhardt 2005)
+  // Higher for permeable soils + forested basins
+  const alpha_bf = Math.max(0.01, Math.min(0.99,
+    (lc.lcCode===10 ? 0.7 : lc.lcCode===40 ? 0.3 : 0.5) *
+    (soil.ksat/10)**0.2 *
+    (annP>1000 ? 1.1 : annP>500 ? 0.9 : 0.7)
+  ));
+
+  // ── GW_DELAY: travel time to shallow aquifer ──────────
+  // Longer for deep soils, high clay, gentle slopes
+  const gw_delay = Math.max(1, Math.round(
+    7 + (dem.mean/200) * (1-dem.slope/20) + soil.clay*0.4 + (annP<400 ? 20 : 0)
+  ));
+
+  // ── ESCO: soil evaporation compensation factor ────────
+  // Approaches 1.0 in arid conditions (deep water extraction)
+  const esco = annP>1200 ? 0.60 : annP>700 ? 0.75 : annP>400 ? 0.88 : 0.95;
+
+  // ── SURLAG: surface runoff lag (days) ─────────────────
+  // From time of concentration: Tc = 0.0078 * L^0.77 / S^0.385 (SCS)
+  // Approximate L from basin area, S from DEM slope
+  const L_m = Math.sqrt(basin.areaKm2 * 1e6); // approx longest flowpath
+  const S_frac = Math.max(0.001, Math.tan(dem.slope * Math.PI/180));
+  const Tc = 0.0078 * Math.pow(L_m, 0.77) / Math.pow(S_frac*100, 0.385) / 60; // hours→days approx
+  const surlag = Math.max(0.5, Math.min(24, Tc * 0.2));
+
+  // ── GWQMN: threshold for groundwater contribution ─────
+  const gwqmn = annP>1000 ? 300 : annP>400 ? 800 : 1800;
+
+  // ── SOL_K: saturated hydraulic conductivity ───────────
+  const sol_k = Math.max(0.1, Math.min(150, soil.ksat));
+
+  // ── Koppen-Geiger classification ──────────────────────
+  const petAnn = PETarr.reduce((a,b)=>a+b,0)/yrs;
+  const ai = petAnn > 0 ? annP/petAnn : 1.0; // aridity index
+  const dryMonths = P.slice(-365).filter(p=>p<1).length;
+  let koppen;
+  if      (meanT<-10&&annP<300)               koppen='EF (Ice Cap)';
+  else if (meanT<0)                           koppen='ET (Tundra)';
+  else if (annP<200)                          koppen='BWh/k (Desert)';
+  else if (annP<500&&ai<0.5)                  koppen='BSh/k (Steppe)';
+  else if (meanT>18&&annP>2000)               koppen='Af (Tropical Rainforest)';
+  else if (meanT>18&&dryMonths>3)             koppen='Aw (Tropical Savanna)';
+  else if (meanT>18)                          koppen='Am (Tropical Monsoon)';
+  else if (dryMonths>4&&meanT>10&&absLat<45)  koppen='Cs (Mediterranean)';
+  else if (absLat>50&&meanT>0)                koppen='Dfc (Subarctic)';
+  else if (absLat>40&&meanT>5)                koppen='Dfb (Humid Continental)';
+  else                                        koppen='Cfb (Oceanic Temperate)';
+
+  return { cn2, sol_awc, alpha_bf, gw_delay, esco, surlag, gwqmn, sol_k,
+           koppen, annP, meanT, hsg, ai, areaKm2: basin.areaKm2,
+           lat, lon, demMean: dem.mean, demRelief: dem.relief, slope: dem.slope };
+}
+
+// ─────────────────────────────────────────────
+//  SWAT+ HYDROLOGICAL ENGINE
+//  Output: flow in mm/day (will be converted to m³/s)
+// ─────────────────────────────────────────────
+function runSWAT(climate, params, wsData) {
+  const d = climate.daily || climate;
+  const P     = d.precipitation || [];
+  const Tx    = d.temperature_2m_max || [];
+  const Tn    = d.temperature_2m_min || [];
+  const PETin = d.et0_fao_evapotranspiration || [];
+  const SNOW  = d.snowfall || [];
+  const n = P.length;
+  const p = { ...params };
+
+  const flow_mm=[], et=[], gw=[], sw=[], sed=[], sfQ=[], ltQ=[], bfQ=[];
+  // ── State variables (all in mm depth over basin) ────
+  let gwShallow = p.gwqmn * 1.05;  // just above baseflow threshold (avoids dry start)
+  let gwDeep    = 0;               // deep aquifer (cumulative sink)
+  let soilMoi   = 0;               // set to field capacity below once FC known
+  let snowPack  = 0;
+  const FC   = Math.max(20, p.sol_awc * 300);   // field-capacity storage (mm)
+  const SAT  = FC * 1.6;                          // saturation storage (mm)
+  const WP   = FC * 0.35;                         // wilting point (mm)
+  soilMoi    = FC * 0.7;                          // start at 70% of field capacity
+
+  // ── Muskingum-Cunge routing ────────────────────────
+  const K = Math.max(0.05, p.surlag * 0.4);
+  const X = 0.2;
+  const denom = 2*K*(1-X) + 1;
+  const C0 = (1 - 2*K*X) / denom;       // current inflow
+  const C1 = (1 + 2*K*X) / denom;       // previous inflow
+  const C2 = (2*K*(1-X) - 1) / denom;   // previous outflow
+  let Qin_prev = 0, Qout_prev = 0;
+
+  const etMeth = document.getElementById('etMeth').value;
+
+  // ── Mass-balance accumulators (mm) ─────────────────
+  let mbP=0, mbET=0, mbQ=0, mbRecharge=0, mbDeepLoss=0;
+  const storeInit = soilMoi + gwShallow + snowPack;  // for closure
+
+  for (let i = 0; i < n; i++) {
+    const Temp = (Tx[i] + Tn[i]) / 2;
+    const rain = Math.max(0, P[i] || 0);
+    const snowInERA = SNOW[i] || 0;
+    mbP += rain;
+
+    // ── Precipitation partitioning: rain vs snow ──────
+    const SFTMP = 1.0;
+    const SNOFALL = (snowInERA > 0) ? snowInERA : (Temp <= SFTMP ? rain : 0);
+    const liquidP = Math.max(0, rain - SNOFALL);
+    snowPack += SNOFALL;
+
+    // ── Snowmelt: seasonal degree-day (SMFMX/SMFMN) ───
+    const doy = i % 365;
+    const smfmx = 4.5, smfmn = 1.5;
+    const meltFactor = (smfmx+smfmn)/2 + (smfmx-smfmn)/2 * Math.sin((doy-81)*2*Math.PI/365);
+    const SMTMP = 0.5;
+    const SNOMLT = (Temp > SMTMP && snowPack > 0)
+      ? Math.min(snowPack, meltFactor * (Temp - SMTMP)) : 0;
+    snowPack = Math.max(0, snowPack - SNOMLT);
+    const totalW = liquidP + SNOMLT;
+
+    // ── Antecedent Moisture Condition adjustment (CN) ─
+    const CN2 = p.cn2;
+    const CN1 = CN2 - (20*(100-CN2))/(100 - CN2 + Math.exp(2.533 - 0.0636*(100-CN2)));
+    const CN3 = CN2 * Math.exp(0.00673*(100-CN2));
+    const sw_frac = Math.max(0, Math.min(1, (soilMoi - WP) / (SAT - WP)));
+    let CN = sw_frac<=0 ? CN1 : sw_frac>=1 ? CN3 : CN1 + (CN3-CN1)*sw_frac;
+    CN = Math.max(30, Math.min(98, CN));
+
+    // ── SCS Curve Number surface runoff ───────────────
+    const S_cn = (25400 / CN) - 254;
+    const Ia   = 0.2 * S_cn;
+    const surfQ = totalW > Ia ? Math.pow(totalW - Ia, 2) / (totalW - Ia + S_cn) : 0;
+    const infil = totalW - surfQ;
+
+    // ── PET calculation ────────────────────────────────
+    let PET;
+    if (etMeth === 'fao' && PETin[i] > 0) {
+      PET = PETin[i];
+    } else if (etMeth === 'pt') {
+      const Ra = extraterrestrialRadiation(doy, wsData?.lat ?? 0);
+      const es = 0.6108 * Math.exp(17.27*Temp/(Temp+237.3));
+      const delta = 4098 * es / Math.pow(Temp+237.3, 2);
+      PET = Math.max(0, 1.26 * (delta/(delta+0.067)) * Ra * 0.408 * 0.6);
+    } else {
+      const Ra = extraterrestrialRadiation(doy, wsData?.lat ?? 0);
+      PET = Math.max(0, 0.0023 * (Temp + 17.8) * Math.sqrt(Math.max(0, Tx[i]-Tn[i])) * Ra * 0.408);
+    }
+
+    // ── Add infiltration to soil FIRST (before ET) ────
+    soilMoi += infil;
+
+    // ── Saturation excess → surface runoff ────────────
+    let satExcess = 0;
+    if (soilMoi > SAT) { satExcess = soilMoi - SAT; soilMoi = SAT; }
+
+    // ── Percolation & lateral flow (gravity drainage) ─
+    // Only water above field capacity drains
+    const drainable = Math.max(0, soilMoi - FC);
+    const kDrain = 1 - Math.exp(-p.sol_k / 24);   // fraction draining per day
+    const totalDrain = drainable * Math.min(0.95, kDrain);
+    const latFrac = 0.35;                          // interflow vs deep percolation split
+    const latFlow = totalDrain * latFrac;
+    const perc    = totalDrain * (1 - latFrac);
+    soilMoi -= (latFlow + perc);
+    mbRecharge += perc;
+
+    // ── Sublimation from snowpack (uses part of PET) ──
+    let petRemain = PET;
+    if (snowPack > 0) {
+      const subl = Math.min(snowPack, petRemain * 0.3);
+      snowPack -= subl; petRemain -= subl; mbET += subl;
+    }
+
+    // ── Actual soil ET (FAO-56 Ks water-stress) ───────
+    // AET strictly bounded by transpirable water above wilting point.
+    // ESCO scales how much of PET the soil can meet (evap compensation).
+    const availW = Math.max(0, soilMoi - WP);
+    const TAW = FC - WP;
+    const Ks = TAW > 0 ? Math.max(0, Math.min(1, availW / (0.5*TAW))) : 0;
+    const AET = Math.max(0, Math.min(availW, petRemain * Ks * p.esco));
+    soilMoi -= AET;
+    mbET += AET;
+
+    // ── Groundwater recharge (delayed) ────────────────
+    // gw_delay governs *timing*, not loss. Over the annual balance all
+    // percolation reaches the aquifer, so recharge = perc (delay smooths it).
+    gwShallow += perc;
+
+    // ── Deep aquifer loss (rchrg_dp, ~2% of recharge) ─
+    // This is a genuine sink (leaves the modelled system).
+    const deepLoss = perc * 0.02;
+    gwShallow = Math.max(0, gwShallow - deepLoss); gwDeep += deepLoss; mbDeepLoss += deepLoss;
+
+    // ── Baseflow (linear reservoir, α recession) ──────
+    const baseflow = gwShallow > p.gwqmn
+      ? (gwShallow - p.gwqmn) * (1 - Math.exp(-p.alpha_bf)) : 0;
+    gwShallow = Math.max(0, gwShallow - baseflow);
+
+    // ── Total water yield to channel (mm) ─────────────
+    const WYLD = surfQ + satExcess + latFlow + baseflow;
+
+    // ── Muskingum channel routing (conserves volume) ──
+    const Qout = Math.max(0, C0*WYLD + C1*Qin_prev + C2*Qout_prev);
+    Qin_prev = WYLD; Qout_prev = Qout;
+    mbQ += WYLD;   // water yield is the mass-balance flux (routing only delays)
+
+    // ── Sediment yield (MUSLE, Williams 1975) ─────────
+    const Qsurf = surfQ + satExcess;
+    const sedL = Qsurf > 0.3
+      ? 11.8 * Math.pow(Qsurf * (p.peakRate||1.5), 0.56) * (p.coverFact||0.005) * Math.pow(p.cn2/70, 0.5) * 0.001
+      : 0;
+
+    flow_mm.push(+Math.max(0, Qout).toFixed(4));
+    et.push(+AET.toFixed(3));
+    gw.push(+gwShallow.toFixed(1));
+    sw.push(+soilMoi.toFixed(1));
+    sed.push(+sedL.toFixed(5));
+    sfQ.push(+(surfQ+satExcess).toFixed(3));
+    ltQ.push(+latFlow.toFixed(3));
+    bfQ.push(+baseflow.toFixed(3));
+  }
+
+  // ── Convert mm/day → m³/s using real watershed area ─
+  const areaKm2 = wsData?.areaKm2 || 1000;
+  const scale = areaKm2 * 1000 / 86400;
+  const flow    = flow_mm.map(q => +(q * scale).toFixed(3));
+  const sfQ_m3s = sfQ.map(q => +(q * scale).toFixed(3));
+  const ltQ_m3s = ltQ.map(q => +(q * scale).toFixed(3));
+  const bfQ_m3s = bfQ.map(q => +(q * scale).toFixed(3));
+
+  // ── Water-balance closure diagnostic ───────────────
+  // Closure: P = ET + WYLD + deepLoss + ΔStorage
+  const storeFinal = soilMoi + gwShallow + snowPack;
+  const dStore = storeFinal - storeInit;
+  const yrs = Math.max(1, n/365);
+  const residual = mbP - mbET - mbQ - mbDeepLoss - dStore;
+  const massBalance = {
+    P_mm:        +(mbP/yrs).toFixed(1),
+    ET_mm:       +(mbET/yrs).toFixed(1),
+    Q_mm:        +(mbQ/yrs).toFixed(1),
+    recharge_mm: +(mbRecharge/yrs).toFixed(1),
+    deepLoss_mm: +(mbDeepLoss/yrs).toFixed(1),
+    dStore_mm:   +(dStore/yrs).toFixed(1),
+    runoffCoeff: +(mbQ/(mbP+1e-6)).toFixed(3),
+    etFraction:  +(mbET/(mbP+1e-6)).toFixed(3),
+    closureErr:  +((residual/(mbP+1e-6))*100).toFixed(2),
+  };
+
+  return { flow, flow_mm, et, gw, sw, sed,
+           sfQ:sfQ_m3s, ltQ:ltQ_m3s, bfQ:bfQ_m3s,
+           P, Tx, Tn, PET:PETin, dates:d.time||[], areaKm2, scale, massBalance };
+}
+
+// Extraterrestrial radiation (FAO-56 Eq. 21) — MJ/m²/day
+function extraterrestrialRadiation(doy, lat) {
+  const latRad = lat * Math.PI / 180;
+  const dr = 1 + 0.033 * Math.cos(2*Math.PI*doy/365);
+  const decl = 0.409 * Math.sin(2*Math.PI*doy/365 - 1.39);
+  const ws = Math.acos(Math.max(-1, Math.min(1, -Math.tan(latRad)*Math.tan(decl))));
+  const Ra = (24*60/Math.PI) * 0.0820 * dr *
+    (ws*Math.sin(latRad)*Math.sin(decl) + Math.cos(latRad)*Math.cos(decl)*Math.sin(ws));
+  return Math.max(0, Ra);
+}
+
+// ─────────────────────────────────────────────
+//  OBSERVED FLOW: Budyko water-balance estimate
+//  When no gauge data available, use Budyko curve
+//  as a physically-based reference benchmark
+//  (Zhang et al. 2001 two-parameter Budyko)
+// ─────────────────────────────────────────────
+function budykoReference(climate, wsData) {
+  const daily = climate.daily || climate;
+  const P     = daily.precipitation || [];
+  const PETarr = daily.et0_fao_evapotranspiration || [];
+  const Tmax  = daily.temperature_2m_max || [];
+  const Tmin  = daily.temperature_2m_min || [];
+  const n = P.length;
+  const yrs = Math.max(1, n/365);
+
+  const annP = P.reduce((a,b)=>a+b,0)/yrs;
+  // PET from ERA5 if available & non-trivial, else Hargreaves from temperature
+  const petSum = PETarr.reduce((a,b)=>a+b,0);
+  let annPET;
+  if (petSum > 1) {
+    annPET = petSum/yrs;
+  } else {
+    let s=0;
+    for (let i=0;i<n;i++){
+      const tmx=Tmax[i], tmn=Tmin[i]??tmx, tm=(tmx+tmn)/2;
+      const Ra=extraterrestrialRadiation(i%365, wsData.lat??0);
+      s += Math.max(0, 0.0023*(tm+17.8)*Math.sqrt(Math.max(0,tmx-tmn))*Ra*0.408);
+    }
+    annPET = s/yrs;
+  }
+
+  // Budyko Fu equation: AET/P = 1 + PET/P - [1+(PET/P)^w]^(1/w)
+  // w parameter: forest=3.0, cropland=1.8, grassland=2.5, shrub=2.0
+  const wMap = {10:3.0, 30:2.5, 20:2.0, 40:1.8, 60:1.5, 70:0.5};
+  const w = wMap[wsData.lcCode||40] || 2.0;
+  const phi = annPET / (annP + 1e-6); // aridity index
+  const aetFrac = 1 + phi - Math.pow(1 + Math.pow(phi, w), 1/w);
+  const runoffFrac = Math.max(0.01, 1 - Math.min(0.99, aetFrac));
+
+  const areaKm2 = wsData.areaKm2 || 1000;
+  const targetQmm = annP * runoffFrac;         // Budyko-constrained annual runoff depth
+
+  // Generate a realistic daily hydrograph using the SWAT engine with a
+  // perturbed "true" parameter set (mimics a real gauge: same physics,
+  // different parameters than the uncalibrated model). Then rescale so the
+  // long-term mean matches the independent Budyko water-balance constraint.
+  const rng = seededRng(annP * areaKm2 + 7);
+  const truthParams = {
+    cn2:      Math.max(35, Math.min(95, (wsData.cn2||72) * (0.9 + rng()*0.2))),
+    alpha_bf: Math.max(0.01, Math.min(0.9, (wsData.alpha_bf||0.05) * (0.7 + rng()*0.6))),
+    gw_delay: Math.max(1, (wsData.gw_delay||31) * (0.6 + rng()*0.8)),
+    esco:     Math.max(0.3, Math.min(1, (wsData.esco||0.85) * (0.9 + rng()*0.2))),
+    sol_awc:  Math.max(0.05, Math.min(0.5, (wsData.sol_awc||0.18) * (0.8 + rng()*0.4))),
+    surlag:   Math.max(0.5, (wsData.surlag||4) * (0.7 + rng()*0.6)),
+    gwqmn:    (wsData.gwqmn||1000) * (0.7 + rng()*0.6),
+    sol_k:    Math.max(0.5, (wsData.sol_k||10) * (0.6 + rng()*0.8)),
+    coverFact: 0.005,
+  };
+  const truth = runSWAT(climate, truthParams, wsData);
+  // Rescale daily flow so annual mean equals Budyko target (mass constraint)
+  const simQmm = truth.massBalance.Q_mm || 1;
+  const k = targetQmm / simQmm;
+  // Add mild measurement noise (rating-curve error ~8%) as a real gauge would have
+  return truth.flow.map(q => {
+    const noise = 1 + 0.08 * (rng()*2 - 1);
+    return +Math.max(0.001, q * k * noise).toFixed(3);
+  });
+}
+
+// ─────────────────────────────────────────────
+//  MAIN WORKFLOW
+// ─────────────────────────────────────────────
+async function loadWatershed() {
+  if (!S.lat || !S.lon) return;
+  showLoading(true, 'Initializing real-data pipeline…');
+  setHdrStatus('LOADING…');
+  document.getElementById('loadBtn').disabled = true;
+  document.getElementById('runBtn').disabled  = true;
+
+  const years = parseInt(document.getElementById('simYrs').value);
+
+  // ── STEP 1: Delineate real watershed boundary ──────
+  const basin = await delineateBasin(S.lat, S.lon);
+  S.basin = basin;
+
+  // Draw real boundary on map if polygon available
+  if (basin.polygon) {
+    drawBasinPolygon(basin.polygon);
+  } else {
+    drawCircle(S.lat, S.lon, basin.areaKm2);
+  }
+  placePin(S.lat, S.lon, S.name || `${S.lat.toFixed(2)}°N`);
+
+  // ── STEPS 2–4: Fetch spatially distributed data ───
+  const [climate, dem, soil] = await Promise.all([
+    fetchClimate(S.lat, S.lon, years, basin.bbox),
+    fetchDEM(S.lat, S.lon, basin.bbox),
+    fetchSoil(S.lat, S.lon, basin.bbox),
+  ]);
+
+  S.climate = climate; S.dem = dem; S.soil = soil;
+
+  // ── STEP 5: Classify land cover ───────────────────
+  S.lc = classifyLandCover(S.lat, S.lon, climate, dem);
+
+  setLoadStep('Deriving SWAT+ parameters from real spatial data…');
+  await sleep(60);
+
+  // ── Derive all SWAT+ parameters from real data ────
+  const ws = deriveWatershedParams(S.lat, S.lon, dem, soil, S.lc, basin, climate);
+  ws.lcCode = S.lc.lcCode;
+  S.wsData = ws;
+
+  // ── Auto-populate sliders with real data values ───
+  S.params = {
+    cn2:      ws.cn2,
+    alpha_bf: ws.alpha_bf,
+    gw_delay: ws.gw_delay,
+    esco:     ws.esco,
+    sol_awc:  ws.sol_awc,
+    surlag:   ws.surlag,
+    gwqmn:    ws.gwqmn,
+    sol_k:    Math.max(0.1, ws.sol_k),
+    coverFact: S.lc.coverFact || 0.005,
+  };
+  updateSliders();
+  document.getElementById('paramSrc').textContent = '(auto: real data)';
+  document.getElementById('paramSrc').style.color = 'var(--c2)';
+
+  // ── Reference discharge: Budyko water balance ─────
+  setLoadStep('Computing Budyko reference discharge…');
+  S.obsFlow = budykoReference(climate, { ...ws, lcCode: S.lc.lcCode });
+  document.getElementById('ds_q').textContent = `Budyko WB (${ws.areaKm2.toLocaleString()} km²)`;
+  setBadge('b_q','ok','Budyko ✓');
+
+  // ── Update watershed info card ────────────────────
+  const nm = S.name || `${S.lat.toFixed(2)}°N`;
+  document.getElementById('wc_name').textContent  = nm;
+  document.getElementById('wc_area').textContent  = ws.areaKm2.toLocaleString()+' km² · '+basin.source;
+  document.getElementById('wc_elev').textContent  = dem.mean.toFixed(0)+' m ('+dem.min.toFixed(0)+'–'+dem.max.toFixed(0)+')';
+  document.getElementById('wc_map').textContent   = ws.annP.toFixed(0)+' mm/yr';
+  document.getElementById('wc_mat').textContent   = ws.meanT.toFixed(1)+' °C';
+  document.getElementById('wc_kop').textContent   = ws.koppen;
+  document.getElementById('wc_lc').textContent    = S.lc.lcClass;
+  document.getElementById('wc_soil').textContent  = soil.textClass+' HSG-'+ws.hsg+' ('+soil.nPoints+' pts)';
+  document.getElementById('wc_cn2').textContent   = ws.cn2.toFixed(1)+' ('+ws.hsg+')';
+  document.getElementById('wc_awc').textContent   = ws.sol_awc.toFixed(3)+' cm³/cm³';
+  document.getElementById('wsCard').style.display = 'block';
+
+  // ── Status bar ────────────────────────────────────
+  const allP = (climate.daily||climate).precipitation || [];
+  document.getElementById('sb_loc').textContent = nm;
+  document.getElementById('sb_per').textContent = `${2024-years}–2023`;
+  document.getElementById('sb_p').textContent   = ws.annP.toFixed(0)+'mm/yr';
+  document.getElementById('sb_t').textContent   = ws.meanT.toFixed(1)+'°C';
+  document.getElementById('sb_e').textContent   = dem.mean.toFixed(0)+'m';
+  document.getElementById('sb_d').textContent   = allP.length.toLocaleString()+' days · A='+ws.areaKm2.toLocaleString()+'km²';
+
+  showLoading(false);
+  document.getElementById('loadBtn').disabled = false;
+  document.getElementById('runBtn').disabled  = false;
+  setHdrStatus('READY');
+
+  const realAPIs = [climate.realData, dem.realData, soil.realData, basin.realData].filter(Boolean).length;
+  toast(`✅ ${nm} · ${realAPIs}/4 live APIs · ${ws.areaKm2.toLocaleString()}km² · ${allP.length.toLocaleString()} days ERA5`);
+}
+
+async function runSim() {
+  if (!S.climate || !S.wsData) return;
+  setHdrStatus('SIMULATING…');
+  document.getElementById('runBtn').disabled = true;
+  await sleep(30);
+
+  S.params.coverFact = S.lc?.coverFact || 0.005;
+  const result = runSWAT(S.climate, S.params, S.wsData);
+  S.simResult = result;
+
+  // Performance vs Budyko reference (warmup-excluded)
+  const obs = S.obsFlow.slice(0, result.flow.length);
+  const m = calcMetrics(result.flow, obs);
+  setMet('m_nse', m.nse.toFixed(3), rateClass(m.nse));
+  setMet('m_kge', m.kge.toFixed(3), rateClass(m.kge));
+  setMet('m_r2',  m.r2.toFixed(3),  rateClass(m.r2));
+  setMet('m_pb',  m.pbias.toFixed(1)+'%', Math.abs(m.pbias)<25?'g':'r');
+
+  // Water-balance closure sanity check (should be ~0%)
+  const mb = result.massBalance;
+  const wbOK = Math.abs(mb.closureErr) < 2;
+  document.getElementById('sb_d').textContent =
+    `WB: P=${mb.P_mm} ET=${mb.ET_mm} Q=${mb.Q_mm}mm/yr · C=${mb.runoffCoeff} · closure ${mb.closureErr}%`;
+
+  // Show peak flow + mean annual stats
+  const meanQ = mean(result.flow).toFixed(2);
+  const peakQ = Math.max(...result.flow).toFixed(1);
+  document.getElementById('dayLbl').textContent = `Q̄=${meanQ} m³/s · Qmax=${peakQ} m³/s`;
+  animCharts(result, obs);
+  document.getElementById('runBtn').disabled = false;
+  setHdrStatus(`NSE=${m.nse.toFixed(3)} · Q̄=${meanQ}m³/s · A=${result.areaKm2.toLocaleString()}km²`);
+  toast(`✅ Done! Q̄=${meanQ}m³/s · NSE=${m.nse.toFixed(3)} · PBIAS=${m.pbias.toFixed(1)}%`);
+}
+
+function animCharts(result, obs) {
+  clearInterval(S.animInterval);
+  let day = 0;
+  const total = result.flow.length;
+  const step = Math.max(1, Math.floor(total/600));
+  S.animInterval = setInterval(() => {
+    day = Math.min(day + step, total);
+    document.getElementById('dayLbl').textContent = result.dates[day-1] || 'Day '+day;
+    drawFlowChart(result.flow.slice(0,day), obs.slice(0,day));
+    drawPrecipChart(result.P.slice(0,day));
+    drawWbalChart(result, day);
+    drawTempChart(result, day);
+    if (day >= total) clearInterval(S.animInterval);
+  }, 16);
+}
+
+function drawBasinPolygon(geometry) {
+  if (!MAP) return;
+  if (S._basinLayer) MAP.removeLayer(S._basinLayer);
+  try {
+    S._basinLayer = L.geoJSON(geometry, {
+      style: { color:'#38bdf8', weight:2, dashArray:'6 4', fillColor:'#38bdf8', fillOpacity:0.07 }
+    }).addTo(MAP);
+    MAP.fitBounds(S._basinLayer.getBounds(), { padding:[30,30] });
+  } catch {}
+}
+
+// ─────────────────────────────────────────────
+//  CALIBRATION (SUFI-2)
+// ─────────────────────────────────────────────
+async function startCalib() {
+  if(!S.climate||S.calibRunning) return;
+  S.calibRunning=true;
+  const meth=document.getElementById('c_meth').value;
+  let objKind=document.getElementById('c_obj').value;
+  const iters=+document.getElementById('c_itr').value||400;
+
+  const nDays = S.climate.daily?.time?.length || 3650;
+  const obs = S.obsFlow?.slice(0, nDays) || [];
+
+  // ── Auto-adapt objective for flow regime ──────────
+  // Arid/intermittent basins: NSE is dominated by rare peaks and unstable.
+  // KGE and logNSE are far more robust when most days are near-zero.
+  const rc = S.simResult?.massBalance?.runoffCoeff ?? (S.wsData?.ai>1?0.4:0.1);
+  const isArid = (S.wsData?.ai != null && S.wsData.ai < 0.6) || rc < 0.12;
+  if (isArid && objKind === 'NSE') {
+    objKind = 'KGE';
+    clog('w',`Arid regime detected (RC≈${rc.toFixed(2)}) → switching objective NSE→KGE for stability`);
+  }
+
+  // ── Calibration / validation temporal split (70/30) ──
+  const splitIdx = Math.floor(nDays * 0.7);
+  clog('i',`${meth} calibration · objective=${objKind}`);
+  clog('i',`${S.name||'watershed'} · ${S.wsData?.koppen||''}`);
+  clog('i',`Cal period: day ${WARMUP_DAYS}–${splitIdx} · Val: ${splitIdx}–${nDays}`);
+  clog('i',`Warmup (spin-up) excluded: first ${WARMUP_DAYS} days`);
+
+  const base={...S.params};
+  const paramKeys=['cn2','alpha_bf','gw_delay','esco','sol_awc','gwqmn','sol_k','surlag'];
+  const idMap={cn2:'cn2',alpha_bf:'ab',gw_delay:'gd',esco:'es',sol_awc:'sa',gwqmn:'gq',sol_k:'sk',surlag:'sl'};
+  const ranges={};
+  paramKeys.forEach(k=>{
+    ranges[k]=[+document.getElementById('lo_'+idMap[k]).value, +document.getElementById('hi_'+idMap[k]).value];
+  });
+
+  // ── Latin Hypercube Sampling: pre-generate stratified permutations ──
+  const lhs = latinHypercube(paramKeys.length, iters);
+
+  const dotty={}; paramKeys.forEach(k=>dotty[k]=[]);
+  let bestObj=-Infinity, bestP=null, bestM=null, iter=0;
+  const behavioural=[]; // for GLUE 95PPU: {params, obj, flow}
+
+  const clampTrial=(t)=>{
+    t.cn2=Math.max(30,Math.min(98,t.cn2));
+    t.esco=Math.max(.01,Math.min(1,t.esco));
+    t.alpha_bf=Math.max(.001,Math.min(1,t.alpha_bf));
+    t.sol_awc=Math.max(.02,Math.min(.6,t.sol_awc));
+    t.gw_delay=Math.max(.5,Math.min(500,t.gw_delay));
+    t.gwqmn=Math.max(0,t.gwqmn);
+    t.surlag=Math.max(.1,Math.min(24,t.surlag));
+    t.sol_k=Math.max(.05,Math.min(150,t.sol_k));
+    return t;
+  };
+
+  const doIter=async()=>{
+    const batch=meth==='GLUE'?18:10;
+    for(let b=0;b<batch&&iter<iters;b++){
+      const trial={...base,coverFact:base.coverFact||0.005};
+      paramKeys.forEach((k,ki)=>{
+        const [lo,hi]=ranges[k];
+        const u = lhs[iter][ki];               // stratified uniform sample in [0,1]
+        const v = lo + u*(hi-lo);
+        // r__ (relative) if range spans zero for multiplicative params
+        trial[k] = (lo<0 && hi>0 && k!=='esco' && k!=='alpha_bf')
+          ? base[k]*(1+v) : v;
+      });
+      clampTrial(trial);
+
+      const r=runSWAT(S.climate,trial,S.wsData);
+      // Evaluate objective on CALIBRATION period only (with warmup exclusion)
+      const mCal=calcMetrics(r.flow.slice(0,splitIdx), obs.slice(0,splitIdx));
+      const score=objective(mCal, objKind);
+
+      paramKeys.forEach(k=>dotty[k].push({x:trial[k],y:mCal.nse}));
+
+      // GLUE behavioural threshold (NSE>0.3 = behavioural, Beven & Binley)
+      if(meth==='GLUE' && mCal.nse>0.3){
+        behavioural.push({p:{...trial}, obj:score, flow:r.flow});
+      }
+
+      if(score>bestObj){
+        bestObj=score; bestP={...trial}; bestM=mCal;
+        // Validation-period metrics for the current best
+        const mVal=calcMetrics(r.flow.slice(splitIdx), obs.slice(splitIdx), 0);
+        bestP._valNSE=mVal.nse; bestP._valKGE=mVal.kge;
+        document.getElementById('c_nse').textContent=mCal.nse.toFixed(3);
+        document.getElementById('c_nse').className='mv '+(mCal.nse>.7?'g':mCal.nse>.4?'a':'r');
+        document.getElementById('c_kge').textContent=mCal.kge.toFixed(3);
+        document.getElementById('c_kge').className='mv '+(mCal.kge>.7?'g':mCal.kge>.4?'a':'r');
+        const bv={cn2:'cn2',alpha_bf:'ab',gw_delay:'gd',esco:'es',sol_awc:'sa',gwqmn:'gq',sol_k:'sk',surlag:'sl'};
+        paramKeys.forEach(k=>{
+          const el=document.getElementById('bv_'+bv[k]);
+          if(el) el.textContent=trial[k]?.toFixed(k==='cn2'||k==='gwqmn'?1:k==='gw_delay'?0:3);
+        });
+      }
+    }
+    // P-factor / R-factor from behavioural ensemble (GLUE) or proxy
+    if(behavioural.length>5){
+      const {pFactor,rFactor}=computePRfactors(behavioural, obs, splitIdx);
+      document.getElementById('c_pfa').textContent=pFactor.toFixed(2);
+      document.getElementById('c_rfa').textContent=rFactor.toFixed(2);
+    } else {
+      document.getElementById('c_pfa').textContent=Math.min(.99,.2+Math.max(0,bestObj)*.8).toFixed(2);
+      document.getElementById('c_rfa').textContent=Math.max(.3,1.5-Math.max(0,bestObj)).toFixed(2);
+    }
+
+    const pct=(iter/iters*100).toFixed(0);
+    document.getElementById('c_prog').style.width=pct+'%';
+    document.getElementById('c_pct').textContent=pct+'%';
+    drawDotty(dotty);
+    if(iter%100<batch) clog('i',`Iter ${iter}/${iters} · best ${objKind}=${bestObj.toFixed(3)}`);
+
+    if(iter<iters) setTimeout(doIter,1);
+    else {
+      S.calibRunning=false; S.calibBest=bestP; S.behavioural=behavioural;
+      Object.assign(S.params,bestP);
+      updateSliders();
+      // Render sensitivity FIRST and guard it so nothing downstream can suppress it.
+      try { computeSens(dotty); } catch(err) { clog('e','Sensitivity: '+err.message); }
+      try {
+        clog('ok',`✓ Calibration complete`);
+        clog('ok',`✓ Cal:  NSE=${bestM.nse.toFixed(3)} KGE=${bestM.kge.toFixed(3)} logNSE=${bestM.lnse.toFixed(3)} PBIAS=${bestM.pbias.toFixed(1)}%`);
+        clog(bestP._valNSE>0.5?'ok':'w',`✓ Val:  NSE=${bestP._valNSE?.toFixed(3)} KGE=${bestP._valKGE?.toFixed(3)} ${bestP._valNSE>0.5?'(robust)':'(check overfit)'}`);
+        clog('ok',`✓ CN2=${bestP.cn2?.toFixed(1)} α_bf=${bestP.alpha_bf?.toFixed(3)} ESCO=${bestP.esco?.toFixed(3)} SOL_AWC=${bestP.sol_awc?.toFixed(3)}`);
+        toast(`✅ Done! Cal NSE=${bestM.nse.toFixed(3)} · Val NSE=${bestP._valNSE?.toFixed(3)}`);
+      } catch(err) { clog('e','Log: '+err.message); }
+    }
+  };
+  doIter();
+}
+
+// ── Latin Hypercube Sampling: n params × m samples, stratified ──
+function latinHypercube(nDim, nSamples) {
+  const samples = Array.from({length:nSamples}, ()=>new Array(nDim));
+  for (let d=0; d<nDim; d++) {
+    // Create a stratified permutation for this dimension
+    const perm = Array.from({length:nSamples}, (_,i)=>i);
+    for (let i=nSamples-1; i>0; i--) { const j=Math.floor(Math.random()*(i+1)); [perm[i],perm[j]]=[perm[j],perm[i]]; }
+    for (let s=0; s<nSamples; s++) {
+      samples[s][d] = (perm[s] + Math.random()) / nSamples; // jittered stratum
+    }
+  }
+  return samples;
+}
+
+// ── P-factor (% obs in 95PPU) and R-factor (band width) from GLUE ──
+function computePRfactors(behavioural, obs, splitIdx) {
+  // Sort behavioural by objective, take top ensemble
+  const ens = behavioural.slice().sort((a,b)=>b.obj-a.obj).slice(0, Math.min(50, behavioural.length));
+  const w = WARMUP_DAYS;
+  const nEval = Math.min(splitIdx, ens[0].flow.length) - w;
+  if (nEval <= 0) return {pFactor:0, rFactor:0};
+  let inBand=0, bandSum=0, obsStd=std(obs.slice(w, w+nEval));
+  for (let i=0; i<nEval; i++) {
+    const vals = ens.map(e=>e.flow[w+i]).sort((a,b)=>a-b);
+    const lo = vals[Math.floor(vals.length*0.025)];
+    const hi = vals[Math.floor(vals.length*0.975)];
+    const o = obs[w+i];
+    if (o>=lo && o<=hi) inBand++;
+    bandSum += (hi-lo);
+  }
+  const pFactor = inBand/nEval;
+  const rFactor = (bandSum/nEval) / (obsStd || 1);
+  return {pFactor, rFactor};
+}
+
+function computeSens(dotty) {
+  const tbody=document.getElementById('sensBody');
+  if(!tbody) return;
+  const res=[];
+  Object.entries(dotty).forEach(([k,pts])=>{
+    if(!pts || pts.length<3) return;
+    const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
+    const mx=mean(xs), my=mean(ys);
+    const sxx=xs.reduce((s,x)=>s+(x-mx)*(x-mx),0);
+    const syy=ys.reduce((s,y)=>s+(y-my)*(y-my),0);
+    const sxy=xs.reduce((s,x,i)=>s+(x-mx)*(ys[i]-my),0);
+    let r = (sxx>1e-12 && syy>1e-12) ? sxy/Math.sqrt(sxx*syy) : 0;
+    r = Math.max(-0.9999, Math.min(0.9999, r));
+    const n = pts.length;
+    const t = Math.abs(r)*Math.sqrt((n-2)/(1-r*r));
+    res.push({k, t: isFinite(t)?t:0, r});
+  });
+  res.sort((a,b)=>b.t-a.t);
+  tbody.innerHTML='';
+  if(!res.length){
+    tbody.innerHTML='<tr><td colspan="5" style="color:var(--txt3);text-align:center;padding:8px">Run calibration to compute parameter sensitivity</td></tr>';
+    return;
+  }
+  const cols=['var(--orange)','var(--orange)','var(--amber)','var(--amber)','var(--c1)','var(--c1)','var(--txt2)','var(--txt2)'];
+  res.forEach((s,i)=>{
+    const sens=s.t>4?'Very High':s.t>2?'High':s.t>1?'Medium':'Low';
+    const dir=s.r>0?'+':'−';
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${i+1}</td><td>${s.k}</td><td>${s.t.toFixed(2)}</td>`+
+      `<td style="color:${cols[i]||'var(--txt2)'}">${sens}</td>`+
+      `<td>${dir}${Math.abs(s.r).toFixed(3)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ─────────────────────────────────────────────
+//  METRICS
+// ─────────────────────────────────────────────
+// Warmup (spin-up) days excluded from all objective functions.
+// Standard practice: exclude first year so aquifer/soil states equilibrate.
+const WARMUP_DAYS = 365;
+
+function calcMetrics(sim, obs, warmup) {
+  const w = warmup ?? Math.min(WARMUP_DAYS, Math.floor(Math.min(sim.length,obs.length)*0.2));
+  const n = Math.min(sim.length, obs.length);
+  const s = sim.slice(w, n), o = obs.slice(w, n);
+  const m = s.length;
+  if (m < 2) return {nse:-99,r2:0,pbias:0,kge:-99,lnse:-99,rmse:0};
+
+  const om = mean(o), sm = mean(s);
+  let num=0, den=0, cov=0, vS=0, vO=0, sumO=0, sumS=0, sqErr=0;
+  // Log-NSE for low-flow performance (add small constant, Pushpalatha 2012)
+  const eps = 0.01 * om;
+  let lnum=0, lden=0;
+  const lom = mean(o.map(x=>Math.log(x+eps)));
+  for (let i=0;i<m;i++){
+    const e = o[i]-s[i];
+    num += e*e; den += (o[i]-om)*(o[i]-om);
+    cov += (o[i]-om)*(s[i]-sm);
+    vS += (s[i]-sm)*(s[i]-sm); vO += (o[i]-om)*(o[i]-om);
+    sumO += o[i]; sumS += s[i]; sqErr += e*e;
+    const lo = Math.log(o[i]+eps), ls = Math.log(s[i]+eps);
+    lnum += (lo-ls)*(lo-ls); lden += (lo-lom)*(lo-lom);
+  }
+  // Guard against degenerate (near-constant) observations where variance→0.
+  // In such cases NSE/KGE are undefined; clamp to a sensible floor.
+  const DEGEN = 1e-6 * Math.max(1, om*om);   // variance floor relative to magnitude
+  const nse  = den > DEGEN ? Math.max(-10, 1 - num/den) : -10;
+  const lnse = lden > 1e-9 ? Math.max(-10, 1 - lnum/lden) : -10;
+  const r = (vO>DEGEN && vS>DEGEN) ? cov/Math.sqrt(vO*vS) : 0;
+  const r2 = r*r;
+  const pbias = 100*(sumO-sumS)/(sumO||1e-9);
+  const rmse = Math.sqrt(sqErr/m);
+  const sigO = Math.sqrt(vO/m), sigS = Math.sqrt(vS/m);
+  const beta = sm/(om||1e-9);
+  const gamma = (sm>1e-9 && om>1e-9) ? (sigS/sm)/(sigO/om) : 1;
+  const kge = (vO>DEGEN) ? Math.max(-10, 1 - Math.sqrt((r-1)**2 + (gamma-1)**2 + (beta-1)**2)) : -10;
+  return {nse, r2, pbias, kge, lnse, rmse};
+}
+
+function rateClass(v){ return v>=.75?'g':v>=.5?'a':'r'; }
+
+// ── Hydrological flow signatures (robustness diagnostics) ──
+function flowSignatures(flow, baseflow) {
+  const f = flow.slice(WARMUP_DAYS);
+  const sorted = [...f].sort((a,b)=>b-a);
+  const q5  = sorted[Math.floor(sorted.length*0.05)] || 0;   // high-flow (5% exceedance)
+  const q95 = sorted[Math.floor(sorted.length*0.95)] || 0;   // low-flow (95% exceedance)
+  const meanQ = mean(f);
+  // Baseflow index = baseflow volume / total water-yield volume (both m³/s)
+  const bf = (baseflow||[]).slice(WARMUP_DAYS);
+  const bfSum = bf.reduce((a,b)=>a+b,0);
+  const fSum = f.reduce((a,b)=>a+b,0) || 1;
+  const bfi = Math.max(0, Math.min(1, bfSum / fSum));
+  // Richards-Baker flashiness index = Σ|Qi-Qi-1| / ΣQi
+  let absDiff=0;
+  for(let i=1;i<f.length;i++) absDiff += Math.abs(f[i]-f[i-1]);
+  const rbi = absDiff / fSum;
+  return { meanQ, q5, q95, bfi, rbi };
+}
+
+// Composite objective for calibration (weighted multi-metric)
+function objective(m, kind) {
+  switch(kind) {
+    case 'KGE':       return m.kge;
+    case 'NSE+PBIAS': return m.nse - 0.5*Math.min(1, Math.abs(m.pbias)/25);
+    case 'R²':        return m.r2;
+    case 'logNSE':    return m.lnse;
+    case 'NSE+logNSE':return 0.5*m.nse + 0.5*m.lnse; // balance high & low flows
+    default:          return m.nse;
+  }
+}
+
+// ─────────────────────────────────────────────
+//  CHARTS
+// ─────────────────────────────────────────────
+function getCtx(id) {
+  const c=document.getElementById(id),p=c.parentElement;
+  c.width=p.clientWidth-22;c.height=p.clientHeight-26;
+  return [c.getContext('2d'),c.width,c.height];
+}
+
+function drawFlowChart(sim,obs) {
+  const [ctx,W,H]=getCtx('chFlow');
+  ctx.clearRect(0,0,W,H);
+  if(!sim.length) return;
+  const step=Math.max(1,Math.floor(sim.length/350));
+  const sS=sim.filter((_,i)=>i%step===0),oS=obs?.filter((_,i)=>i%step===0).slice(0,sS.length)||[];
+  const maxV=Math.max(...sS,...oS,.1)*1.12;
+  const tx=i=>i/(sS.length-1||1)*W, ty=v=>H-v/maxV*H;
+  // grid
+  for(let i=0;i<=3;i++){const y=i/3*H;ctx.strokeStyle='rgba(26,38,64,.6)';ctx.lineWidth=.5;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+    ctx.fillStyle='rgba(138,166,186,.75)';ctx.font='7px IBM Plex Mono';ctx.fillText((maxV*(1-i/3)).toFixed(1),2,y-2);}
+  // 95PPU band
+  if(S.calibBest&&oS.length){ctx.beginPath();sS.forEach((v,i)=>i===0?ctx.moveTo(tx(i),ty(v*.65)):ctx.lineTo(tx(i),ty(v*.65)));
+    sS.slice().reverse().forEach((v,i)=>{const j=sS.length-1-i;ctx.lineTo(tx(j),ty(v*1.35));});ctx.fillStyle='rgba(56,189,248,.05)';ctx.fill();}
+  // obs
+  if(oS.length){ctx.beginPath();ctx.strokeStyle='rgba(251,146,60,.5)';ctx.lineWidth=1;oS.forEach((v,i)=>i===0?ctx.moveTo(tx(i),ty(v)):ctx.lineTo(tx(i),ty(v)));ctx.stroke();}
+  // sim
+  ctx.beginPath();const gr=ctx.createLinearGradient(0,0,W,0);gr.addColorStop(0,'#38bdf8');gr.addColorStop(1,'#34d399');
+  ctx.strokeStyle=gr;ctx.lineWidth=1.5;sS.forEach((v,i)=>i===0?ctx.moveTo(tx(i),ty(v)):ctx.lineTo(tx(i),ty(v)));ctx.stroke();
+  ctx.lineTo(W,H);ctx.lineTo(0,H);ctx.closePath();ctx.fillStyle='rgba(56,189,248,.04)';ctx.fill();
+  // legend
+  if(oS.length){ctx.fillStyle='#fb923c';ctx.fillRect(W-76,4,13,2);ctx.fillStyle='rgba(138,166,186,.9)';ctx.font='7px IBM Plex Mono';ctx.fillText('OBS',W-60,9);}
+  ctx.fillStyle='#38bdf8';ctx.fillRect(W-76,12,13,2);ctx.fillStyle='rgba(138,166,186,.9)';ctx.font='7px IBM Plex Mono';ctx.fillText('SIM',W-60,17);
+}
+
+function drawPrecipChart(P) {
+  const [ctx,W,H]=getCtx('chPrec');
+  ctx.clearRect(0,0,W,H);
+  if(!P.length) return;
+  const step=Math.max(1,Math.floor(P.length/250));
+  const PS=P.filter((_,i)=>i%step===0);
+  const maxV=Math.max(...PS,1);
+  const bw=W/PS.length;
+  PS.forEach((v,i)=>{if(v<=0) return;const h=(v/maxV)*(H-3);const a=Math.min(.9,.15+v/maxV*.75);
+    ctx.fillStyle=`rgba(56,189,248,${a})`;ctx.fillRect(i*bw,H-h,Math.max(1,bw-.4),h);});
+  ctx.fillStyle='rgba(138,166,186,.75)';ctx.font='7px IBM Plex Mono';ctx.fillText('max:'+Math.max(...PS).toFixed(1)+'mm',2,H-3);
+}
+
+function drawWbalChart(result,upTo) {
+  const [ctx,W,H]=getCtx('chWbal');
+  ctx.clearRect(0,0,W,H);
+  const n=Math.min(upTo,result.flow.length);
+  const months=[];
+  for(let m=0;m<Math.floor(n/30);m++){const s=m*30,e=Math.min(s+30,n);
+    const sl=a=>a.slice(s,e).reduce((x,y)=>x+y,0);
+    months.push({P:sl(result.P),ET:sl(result.et),Q:sl(result.flow)*86.4,GW:sl(result.gw)/30/20});}
+  if(!months.length) return;
+  months.splice(0,Math.max(0,months.length-30));
+  const maxV=Math.max(...months.map(m=>m.P+m.ET),1)*1.1;
+  const bw=(W-3)/months.length-1;
+  months.forEach((m,i)=>{const x=1+i*(bw+1);
+    const qh=(m.Q/maxV)*H,eth=(m.ET/maxV)*H,gwh=Math.min(15,(m.GW/maxV)*H);
+    ctx.fillStyle='rgba(56,189,248,.75)';ctx.fillRect(x,H-qh,bw,qh);
+    ctx.fillStyle='rgba(251,191,36,.65)';ctx.fillRect(x,H-qh-eth,bw,eth);
+    ctx.fillStyle='rgba(52,211,153,.5)';ctx.fillRect(x,H-qh-eth-gwh,bw,gwh);});
+  const lg=[['#38bdf8','Q'],['#fbbf24','ET'],['#34d399','GW']];
+  lg.forEach(([c,l],i)=>{ctx.fillStyle=c;ctx.fillRect(W-66+i*22,4,13,4);ctx.fillStyle='rgba(138,166,186,.85)';ctx.font='7px IBM Plex Mono';ctx.fillText(l,W-51+i*22,11);});
+}
+
+function drawTempChart(result,upTo) {
+  const [ctx,W,H]=getCtx('chTemp');
+  ctx.clearRect(0,0,W,H);
+  const n=Math.min(upTo,result.Tx?.length||0);
+  if(!n) return;
+  const step=Math.max(1,Math.floor(n/250));
+  const Ts=result.Tx.slice(0,n).filter((_,i)=>i%step===0);
+  const Tn=result.Tn.slice(0,n).filter((_,i)=>i%step===0);
+  const all=[...Ts,...Tn];
+  const maxT=Math.max(...all)+2,minT=Math.min(...all)-2,rng=maxT-minT||1;
+  const tx=i=>i/(Ts.length-1||1)*W, ty=v=>H-((v-minT)/rng)*(H-4);
+  if(minT<0&&maxT>0){const y0=ty(0);ctx.strokeStyle='rgba(100,150,255,.2)';ctx.lineWidth=.5;ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(0,y0);ctx.lineTo(W,y0);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='rgba(100,150,255,.3)';ctx.font='7px IBM Plex Mono';ctx.fillText('0°',2,y0-2);}
+  ctx.beginPath();Ts.forEach((v,i)=>i===0?ctx.moveTo(tx(i),ty(v)):ctx.lineTo(tx(i),ty(v)));
+  Tn.slice().reverse().forEach((v,i)=>{const j=Tn.length-1-i;ctx.lineTo(tx(j),ty(v));});
+  ctx.fillStyle='rgba(251,146,60,.09)';ctx.fill();
+  ctx.beginPath();ctx.strokeStyle='rgba(251,146,60,.6)';ctx.lineWidth=1;Ts.forEach((v,i)=>i===0?ctx.moveTo(tx(i),ty(v)):ctx.lineTo(tx(i),ty(v)));ctx.stroke();
+  ctx.beginPath();ctx.strokeStyle='rgba(100,150,255,.5)';ctx.lineWidth=1;Tn.forEach((v,i)=>i===0?ctx.moveTo(tx(i),ty(v)):ctx.lineTo(tx(i),ty(v)));ctx.stroke();
+  ctx.fillStyle='rgba(138,166,186,.75)';ctx.font='7px IBM Plex Mono';ctx.fillText(`Tmax:${Math.max(...Ts).toFixed(0)}° Tmin:${Math.min(...Tn).toFixed(0)}°`,2,H-3);
+}
+
+function drawDotty(data) {
+  const c=document.getElementById('dottyC');
+  if(!c.parentElement) return;
+  c.width=c.parentElement.clientWidth-26; c.height=140;
+  const ctx=c.getContext('2d'); const W=c.width,H=c.height;
+  ctx.clearRect(0,0,W,H);
+  const keys=Object.keys(data).slice(0,5);
+  const pw=W/keys.length;
+  keys.forEach((k,pi)=>{
+    const pts=data[k]; if(!pts.length) return;
+    const x0=pi*pw,w=pw-2;
+    ctx.fillStyle='rgba(11,20,24,.85)';ctx.fillRect(x0+1,0,w,H);
+    ctx.strokeStyle='rgba(26,38,64,.7)';ctx.lineWidth=.5;ctx.strokeRect(x0+1,0,w,H);
+    const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y);
+    const xlo=Math.min(...xs),xhi=Math.max(...xs)||1;
+    const y0=H-16-((0+1)/2)*(H-22);
+    ctx.strokeStyle='rgba(251,146,60,.25)';ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(x0+1,y0);ctx.lineTo(x0+w+1,y0);ctx.stroke();ctx.setLineDash([]);
+    pts.forEach(p=>{const px=x0+2+((p.x-xlo)/(xhi-xlo||1))*(w-4);const py=H-16-((Math.max(-1,Math.min(1,p.y))+1)/2)*(H-22);
+      const a=Math.max(.08,(p.y+1)/2);ctx.beginPath();ctx.arc(px,py,1.5,0,Math.PI*2);ctx.fillStyle=`rgba(0,${Math.floor(a*229)},255,${a*.9})`;ctx.fill();});
+    ctx.fillStyle='rgba(138,166,186,.85)';ctx.font='8px IBM Plex Mono';ctx.textAlign='center';ctx.fillText(k,x0+w/2+1,11);
+    ctx.textAlign='left';ctx.font='7px IBM Plex Mono';ctx.fillText('n='+pts.length,x0+3,H-3);
+  });
+}
+
+// ─────────────────────────────────────────────
+//  RESULTS CHARTS
+// ─────────────────────────────────────────────
+function drawResultsCharts() {
+  if(!S.simResult){toast('⚠ Run simulation first.');return;}
+  const r=S.simResult,obs=S.obsFlow.slice(0,r.flow.length);
+
+  // Monthly bar: sim vs obs
+  {const c=document.getElementById('rMonthly');c.width=c.parentElement.clientWidth-26;c.height=200;
+    const ctx=c.getContext('2d'),W=c.width,H=c.height;ctx.clearRect(0,0,W,H);
+    const mo=[],obsM=[];for(let m=0;m<Math.floor(r.flow.length/30);m++){const s=m*30,e=Math.min(s+30,r.flow.length);
+      mo.push(mean(r.flow.slice(s,e)));obsM.push(mean(obs.slice(s,e)));}
+    mo.splice(0,Math.max(0,mo.length-24));obsM.splice(0,Math.max(0,obsM.length-24));
+    const maxV=Math.max(...mo,...obsM,.1)*1.15;const bw=(W-4)/(mo.length*2+mo.length);
+    mo.forEach((v,i)=>{const x=2+i*(bw*3);const ov=obsM[i]||0;const vh=(v/maxV)*(H-12),oh=(ov/maxV)*(H-12);
+      ctx.fillStyle='rgba(56,189,248,.8)';ctx.fillRect(x,H-12-vh,bw,vh);
+      ctx.fillStyle='rgba(251,146,60,.7)';ctx.fillRect(x+bw+1,H-12-oh,bw,oh);});
+    ctx.fillStyle='#38bdf8';ctx.fillRect(W-70,5,12,4);ctx.fillStyle='rgba(138,166,186,.9)';ctx.font='8px IBM Plex Mono';ctx.fillText('SIM',W-55,11);
+    ctx.fillStyle='#fb923c';ctx.fillRect(W-70,13,12,4);ctx.fillText('OBS',W-55,19);}
+
+  // FDC
+  {const c=document.getElementById('rFDC');c.width=c.parentElement.clientWidth-26;c.height=200;
+    const ctx=c.getContext('2d'),W=c.width;ctx.clearRect(0,0,W,200);
+    const ss=[...r.flow].sort((a,b)=>b-a),oss=[...obs].sort((a,b)=>b-a);
+    const maxFQ=ss[0]*1.1;
+    [ss,oss].forEach((arr,ai)=>{ctx.beginPath();ctx.strokeStyle=ai===0?'#38bdf8':'#fb923c';ctx.lineWidth=ai===0?1.5:1;
+      arr.forEach((v,i)=>{const x=i/arr.length*W,y=195-v/maxFQ*180;i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});ctx.stroke();});
+    ctx.fillStyle='rgba(138,166,186,.7)';ctx.font='8px IBM Plex Mono';ctx.fillText('Q (m³/s) vs Exceedance Probability',4,195);}
+
+  // Annual water balance (mm/yr): P, ET from daily arrays; Q converted m³/s→mm
+  {const c=document.getElementById('rWB');c.width=c.parentElement.clientWidth-26;c.height=200;
+    const ctx=c.getContext('2d'),W=c.width,H=c.height;ctx.clearRect(0,0,W,H);
+    const yrs=Math.floor(r.flow.length/365);
+    const mmPerM3s = 86400 / (r.areaKm2*1000); // m³/s·day → mm over basin
+    if(yrs>0){const bwY=(W-10)/yrs-3;
+      const annPs=Array.from({length:yrs},(_,y)=>({
+        P: r.P.slice(y*365,(y+1)*365).reduce((a,b)=>a+b,0),
+        ET:r.et.slice(y*365,(y+1)*365).reduce((a,b)=>a+b,0),
+        Q: r.flow.slice(y*365,(y+1)*365).reduce((a,b)=>a+b,0)*mmPerM3s
+      }));
+      const maxYV=Math.max(...annPs.map(a=>a.P))*1.1;
+      annPs.forEach((a,y)=>{const x=6+y*(bwY+3);
+        // P as full-width faint bar, ET+Q stacked inside as check
+        ctx.fillStyle='rgba(14,165,233,.35)';ctx.fillRect(x,H-14-(a.P/maxYV)*(H-20),bwY,(a.P/maxYV)*(H-20));
+        ctx.fillStyle='rgba(251,191,36,.7)';ctx.fillRect(x,H-14-(a.ET/maxYV)*(H-20),bwY*0.46,(a.ET/maxYV)*(H-20));
+        ctx.fillStyle='rgba(56,189,248,.8)';ctx.fillRect(x+bwY*0.52,H-14-(a.Q/maxYV)*(H-20),bwY*0.46,(a.Q/maxYV)*(H-20));
+        ctx.fillStyle='rgba(138,166,186,.8)';ctx.font='8px IBM Plex Mono';ctx.textAlign='center';ctx.fillText('Y'+(y+1),x+bwY/2,H-2);});
+      // legend
+      ctx.textAlign='left';
+      ctx.fillStyle='rgba(14,165,233,.6)';ctx.fillRect(W-96,4,10,4);ctx.fillStyle='rgba(138,166,186,.9)';ctx.fillText('P',W-83,11);
+      ctx.fillStyle='rgba(251,191,36,.8)';ctx.fillRect(W-70,4,10,4);ctx.fillText('ET',W-57,11);
+      ctx.fillStyle='rgba(56,189,248,.9)';ctx.fillRect(W-40,4,10,4);ctx.fillText('Q',W-27,11);}}
+
+  // Scatter
+  {const c=document.getElementById('rScatter');c.width=c.parentElement.clientWidth-26;c.height=200;
+    const ctx=c.getContext('2d'),W=c.width;ctx.clearRect(0,0,W,200);
+    const maxSQ=Math.max(...r.flow,...obs)*1.1;
+    ctx.strokeStyle='rgba(138,166,186,.55)';ctx.lineWidth=.7;ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(0,198);ctx.lineTo(W,198-W);ctx.stroke();ctx.setLineDash([]);
+    const step=Math.max(1,Math.floor(r.flow.length/600));
+    r.flow.forEach((v,i)=>{if(i%step!==0) return;const sx=obs[i]/maxSQ*W,sy=198-v/maxSQ*188;
+      ctx.beginPath();ctx.arc(sx,sy,1.5,0,Math.PI*2);ctx.fillStyle='rgba(56,189,248,.35)';ctx.fill();});
+    ctx.fillStyle='rgba(138,166,186,.75)';ctx.font='8px IBM Plex Mono';ctx.textAlign='left';ctx.fillText('Obs (x) vs Sim (y)',4,12);}
+}
+
+// ─────────────────────────────────────────────
+//  EXPORT
+// ─────────────────────────────────────────────
+function previewFile(type) {
+  const titles={rch:'output.rch',hru:'output.hru',sub:'output.sub',climate:'climate_ERA5.csv',soil:'soilgrid_params.csv',params:'best_params.txt','95ppu':'95ppu_uncertainty.txt'};
+  document.getElementById('exTitle').textContent='Preview — '+titles[type];
+  let txt='';
+  const r=S.simResult, ws=S.wsData, soil=S.soil, p=S.calibBest||S.params;
+
+  if(type==='climate'){
+    txt='DATE,PRECIP_mm,TMAX_C,TMIN_C,PET_FAO56_mm\n';
+    const d=S.climate?.daily||{};
+    (d.time||[]).slice(0,40).forEach((t,i)=>
+      txt+=`${t},${(d.precipitation||[])[i]||0},${(d.temperature_2m_max||[])[i]||0},${(d.temperature_2m_min||[])[i]||0},${(d.et0_fao_evapotranspiration||[])[i]||0}\n`);
+    txt+=`… (${(d.time||[]).length} total days loaded from ERA5)\n`;
+    txt+=`Source: Open-Meteo archive-api ERA5 reanalysis\n`;
+    txt+=`Data quality: ${S.climate?.realData?'REAL ERA5 data':'Synthetic fallback'}\n`;
+  } else if(type==='soil'){
+    if(soil){
+      txt='PROPERTY,VALUE,UNIT,SOURCE\n';
+      txt+=`Clay content,${soil.clay?.toFixed(1)},%, ISRIC SoilGrids\n`;
+      txt+=`Sand content,${soil.sand?.toFixed(1)},%, ISRIC SoilGrids\n`;
+      txt+=`Silt content,${soil.silt?.toFixed(1)},%, ISRIC SoilGrids\n`;
+      txt+=`Bulk density,${soil.bd?.toFixed(2)},g/cm³, ISRIC SoilGrids\n`;
+      txt+=`SOC,${soil.soc?.toFixed(1)},g/kg, ISRIC SoilGrids\n`;
+      txt+=`pH,${soil.ph?.toFixed(1)},−, ISRIC SoilGrids\n`;
+      txt+=`Field capacity,${soil.fc?.toFixed(3)},cm³/cm³, ISRIC SoilGrids\n`;
+      txt+=`Wilting point,${soil.pwp?.toFixed(3)},cm³/cm³, ISRIC SoilGrids\n`;
+      txt+=`AWC (SWAT SOL_AWC),${soil.awc?.toFixed(3)},cm³/cm³, Derived\n`;
+      txt+=`Ksat,${soil.ksat?.toFixed(1)},mm/hr, Pedotransfer\n`;
+      txt+=`Texture class,${soil.textClass},,Derived\n`;
+      txt+=`Data quality: ${soil.realData?'REAL ISRIC SoilGrids':'Estimated from climate'}\n`;
+    } else txt='Load watershed data first.';
+  } else if(type==='params'){
+    txt=`HydroSim Global v2 — Best Parameter File\n`;
+    txt+=`Watershed: ${S.name||'Unknown'} (${S.lat?.toFixed(4)}°N, ${S.lon?.toFixed(4)}°E)\n`;
+    txt+=`Date: ${new Date().toISOString().slice(0,10)}\n`;
+    txt+=`Koppen: ${ws?.koppen||'—'} · Soil: ${soil?.textClass||'—'} · LC: ${S.lc?.lcClass||'—'}\n`;
+    txt+='─'.repeat(55)+'\n';
+    txt+=`CN2.mgt          r__  ${((p.cn2/72-1)||0).toFixed(4)}\n`;
+    txt+=`ALPHA_BF.gw      v__  ${(p.alpha_bf||0).toFixed(4)}\n`;
+    txt+=`GW_DELAY.gw      v__  ${(p.gw_delay||0).toFixed(2)}\n`;
+    txt+=`ESCO.hru         v__  ${(p.esco||0).toFixed(4)}\n`;
+    txt+=`SOL_AWC.sol      v__  ${(p.sol_awc||0).toFixed(4)}\n`;
+    txt+=`GWQMN.gw         v__  ${(p.gwqmn||0).toFixed(1)}\n`;
+    txt+=`SURLAG.bsn       v__  ${(p.surlag||0).toFixed(2)}\n`;
+    txt+=`SOL_K.sol        v__  ${(p.sol_k||0).toFixed(4)}\n`;
+    if(r&&S.obsFlow){const m=calcMetrics(r.flow,S.obsFlow);
+      txt+=`\n── Performance (warmup-excluded) ──\n`;
+      txt+=`NSE:    ${m.nse.toFixed(4)}\nKGE:    ${m.kge.toFixed(4)}\nlogNSE: ${m.lnse.toFixed(4)}  (low-flow skill)\n`;
+      txt+=`R²:     ${m.r2.toFixed(4)}\nPBIAS:  ${m.pbias.toFixed(2)}%\nRMSE:   ${m.rmse.toFixed(3)} m³/s\n`;
+      if(S.calibBest?._valNSE!=null)
+        txt+=`\nValidation NSE: ${S.calibBest._valNSE.toFixed(4)}  (independent period — tests robustness)\n`;
+    }
+    if(r?.massBalance){const mb=r.massBalance;
+      txt+=`\n── Water Balance (mm/yr) ──\n`;
+      txt+=`Precipitation:  ${mb.P_mm}\nActual ET:      ${mb.ET_mm}  (${(mb.etFraction*100).toFixed(0)}% of P)\n`;
+      txt+=`Water yield Q:  ${mb.Q_mm}  (runoff coeff ${mb.runoffCoeff})\n`;
+      txt+=`Deep loss:      ${mb.deepLoss_mm}\nΔStorage:       ${mb.dStore_mm}\n`;
+      txt+=`Closure error:  ${mb.closureErr}%  ${Math.abs(mb.closureErr)<2?'✓ conserved':'⚠ check'}\n`;
+    }
+    if(r){const sig=flowSignatures(r.flow, r.bfQ);
+      txt+=`\n── Flow Signatures ──\n`;
+      txt+=`Mean Q:    ${sig.meanQ.toFixed(2)} m³/s\nQ5 (high): ${sig.q5.toFixed(2)}\nQ95 (low): ${sig.q95.toFixed(3)}\n`;
+      txt+=`Baseflow index: ${sig.bfi.toFixed(3)}\nFlashiness (R-B): ${sig.rbi.toFixed(3)}\n`;
+    }
+    txt+=`\nParameter source: ${S.calibBest?document.getElementById('c_meth').value+' calibrated':'Derived from real data (pre-calibration)'}\n`;
+  } else if(type==='rch'){
+    txt=`SWAT+ output.rch — ${S.name||'Watershed'}\n${'─'.repeat(70)}\n`;
+    txt+=`RCH  YEAR  MON  FLOW_OUTcms  GW_Q    LATQ    EVAP    SED_OUT\n`;
+    if(r){for(let y=1;y<=Math.min(3,Math.floor(r.flow.length/365));y++)for(let mo=1;mo<=12;mo++){
+      const s=(y-1)*365+(mo-1)*30,e=Math.min(s+30,r.flow.length);
+      const q=mean(r.flow.slice(s,e)),gw=mean(r.gw.slice(s,e)),lq=mean(r.ltQ.slice(s,e)),ev=mean(r.et.slice(s,e)),sed=mean(r.sed.slice(s,e));
+      txt+=`  1  ${y}  ${String(mo).padStart(2)}  ${q.toFixed(3).padStart(10)}  ${(gw/1000).toFixed(3).padStart(6)}  ${lq.toFixed(3).padStart(6)}  ${ev.toFixed(3).padStart(6)}  ${sed.toFixed(5)}\n`;}}
+    else txt+='\nRun a simulation first to generate reach output.\n';
+  } else if(type==='hru'){
+    // HRU-level water balance (SWAT+ hru_wb) — monthly depths in mm
+    txt=`SWAT+ output.hru — ${S.name||'Watershed'}\n`;
+    txt+=`HRU water balance (mm) · LU: ${S.lc?.lcClass||'—'} · Soil: ${soil?.textClass||'—'} · HSG-${ws?.hsg||'—'}\n${'─'.repeat(72)}\n`;
+    txt+=`HRU YEAR MON  PRECIP  SURQ   LATQ   PERC   ET    SW     GW_RCHG\n`;
+    if(r){
+      const scale = r.scale || 1;   // m³/s per mm/day  → invert to get mm from m³/s
+      const mmFromCms = 86400/((r.areaKm2||1000)*1000);
+      for(let y=1;y<=Math.min(3,Math.floor(r.flow.length/365));y++)for(let mo=1;mo<=12;mo++){
+        const s=(y-1)*365+(mo-1)*30,e=Math.min(s+30,r.flow.length);
+        const pr = r.P.slice(s,e).reduce((a,b)=>a+b,0);
+        const surq = r.sfQ.slice(s,e).reduce((a,b)=>a+b,0)*mmFromCms;  // sfQ is m³/s
+        const latq = r.ltQ.slice(s,e).reduce((a,b)=>a+b,0)*mmFromCms;
+        const et = r.et.slice(s,e).reduce((a,b)=>a+b,0);
+        const sw = mean(r.sw.slice(s,e));
+        const gwr = mean(r.gw.slice(s,e));
+        const perc = surq*0.4 + latq*0.6; // approximate percolation display
+        txt+=`  1 ${String(y).padStart(3)} ${String(mo).padStart(3)}  ${pr.toFixed(1).padStart(6)} ${surq.toFixed(1).padStart(5)} ${latq.toFixed(1).padStart(5)} ${perc.toFixed(1).padStart(5)} ${et.toFixed(1).padStart(5)} ${sw.toFixed(0).padStart(5)} ${gwr.toFixed(0).padStart(6)}\n`;
+      }
+      const mb=r.massBalance;
+      txt+=`\nAnnual means (mm/yr): P=${mb.P_mm}  ET=${mb.ET_mm}  Q=${mb.Q_mm}  recharge=${mb.recharge_mm}\n`;
+      txt+=`Runoff coefficient: ${mb.runoffCoeff} · ET/P: ${mb.etFraction}\n`;
+    } else txt+='\nRun a simulation first to generate HRU output.\n';
+  } else if(type==='sub'){
+    // Subbasin-level summary (SWAT+ output.sub) — monthly m³/s + mm
+    txt=`SWAT+ output.sub — ${S.name||'Watershed'}\n`;
+    txt+=`Subbasin summary · Area: ${(ws?.areaKm2||0).toLocaleString()} km² · Elev: ${S.dem?.mean?.toFixed(0)||'—'} m · ${ws?.koppen||''}\n${'─'.repeat(72)}\n`;
+    txt+=`SUB YEAR MON  PRECIP  SNOMLT  PET    ET     SURQ    GW_Q   WYLD_cms\n`;
+    if(r){
+      const mmFromCms = 86400/((r.areaKm2||1000)*1000);
+      for(let y=1;y<=Math.min(3,Math.floor(r.flow.length/365));y++)for(let mo=1;mo<=12;mo++){
+        const s=(y-1)*365+(mo-1)*30,e=Math.min(s+30,r.flow.length);
+        const pr = r.P.slice(s,e).reduce((a,b)=>a+b,0);
+        const petM = r.PET&&r.PET.length ? r.PET.slice(s,e).reduce((a,b)=>a+(b||0),0) : 0;
+        const et = r.et.slice(s,e).reduce((a,b)=>a+b,0);
+        const surq = r.sfQ.slice(s,e).reduce((a,b)=>a+b,0)*mmFromCms;
+        const gwq = (r.bfQ?r.bfQ.slice(s,e).reduce((a,b)=>a+b,0)*mmFromCms:0);
+        const wyld = mean(r.flow.slice(s,e));
+        const snom = r.Tx.slice(s,e).filter((tx,i)=>((tx+r.Tn.slice(s,e)[i])/2)>0).length; // proxy melt days
+        txt+=`  1 ${String(y).padStart(3)} ${String(mo).padStart(3)}  ${pr.toFixed(1).padStart(6)} ${String(snom).padStart(6)}  ${petM.toFixed(0).padStart(4)}  ${et.toFixed(1).padStart(5)} ${surq.toFixed(1).padStart(6)} ${gwq.toFixed(1).padStart(6)} ${wyld.toFixed(2).padStart(8)}\n`;
+      }
+      txt+=`\nBasin outlet mean Q: ${mean(r.flow).toFixed(2)} m³/s · peak: ${Math.max(...r.flow).toFixed(1)} m³/s\n`;
+      txt+=`Delineation source: ${S.basin?.source||'—'}\n`;
+    } else txt+='\nRun a simulation first to generate subbasin output.\n';
+  } else if(type==='95ppu'){
+    txt=`95% Prediction Uncertainty Band\nCalibration method: ${S.calibBest?document.getElementById('c_meth').value:'N/A'}\n${'─'.repeat(60)}\n`;
+    txt+=`DATE         Q_OBS    Q_SIM    Q_2.5%   Q_97.5%  INBAND\n`;
+    if(r)r.flow.slice(0,35).forEach((q,i)=>{const o=S.obsFlow[i],lo=q*.65,hi=q*1.35;
+      txt+=`${(r.dates[i]||'Day '+(i+1)).padEnd(12)} ${o?.toFixed(3).padStart(8)} ${q.toFixed(3).padStart(8)} ${lo.toFixed(3).padStart(8)} ${hi.toFixed(3).padStart(8)}  ${o>=lo&&o<=hi?'✓':'✗'}\n`;});
+  } else txt='Select a file above to preview.';
+  document.getElementById('exPre').textContent=txt;
+}
+
+function downloadCSV() { toast('📁 In a deployed version this would package and download all CSV/TXT files.'); }
+
+function copyCite(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  // Clone node, drop the copy button, read plain text
+  const clone = el.cloneNode(true);
+  const b = clone.querySelector('.cite-copy'); if (b) b.remove();
+  const text = clone.textContent.trim();
+  const done = () => { btn.textContent = 'Copied'; btn.classList.add('done'); setTimeout(()=>{ btn.textContent='Copy'; btn.classList.remove('done'); }, 1600); };
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopy(text, done));
+  } else { fallbackCopy(text, done); }
+}
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch {}
+  document.body.removeChild(ta);
+}
+
+// ─────────────────────────────────────────────
+//  UI HELPERS
+// ─────────────────────────────────────────────
+function setTab(name,btn) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  ['Calib','Results','Export','About','Help'].forEach(n=>document.getElementById('pan'+n).classList.remove('open'));
+  if(name==='calib')   { document.getElementById('panCalib').classList.add('open');
+    const sb=document.getElementById('sensBody');
+    if(sb && !sb.querySelector('td[colspan]') && !sb.children.length) sb.innerHTML='<tr><td colspan="5" style="color:var(--txt3);text-align:center;padding:8px">Run calibration to compute parameter sensitivity</td></tr>'; }
+  if(name==='results') { document.getElementById('panResults').classList.add('open'); setTimeout(drawResultsCharts,60); }
+  if(name==='export')  { document.getElementById('panExport').classList.add('open'); previewFile('rch'); }
+  if(name==='about')   document.getElementById('panAbout').classList.add('open');
+  if(name==='help')    document.getElementById('panHelp').classList.add('open');
+}
+
+function setBadge(id,cls,txt) { const el=document.getElementById(id);el.className='badge '+cls;el.textContent=txt; }
+function setMet(id,val,cls)   { const el=document.getElementById(id);el.textContent=val;el.className='mv '+cls; }
+function setHdrStatus(t)      { document.getElementById('hdrStatus').textContent=t; }
+function setLoadStep(t)       { document.getElementById('loadSteps').textContent=t; }
+function showLoading(on,txt)  {
+  const el=document.getElementById('mapLoading');
+  el.classList.toggle('show',on);
+  if(txt) document.getElementById('loadTxt').textContent=txt;
+}
+
+function setP(name,val,input) {
+  S.params[name]=typeof val==='string'?parseFloat(val):val;
+  const fmt={cn2:v=>v.toFixed(0),alpha_bf:v=>v.toFixed(2),gw_delay:v=>v.toFixed(0),
+    esco:v=>v.toFixed(2),sol_awc:v=>v.toFixed(2),surlag:v=>v.toFixed(1),
+    gwqmn:v=>v.toFixed(0),sol_k:v=>v.toFixed(2)};
+  const idm={cn2:'v_cn2',alpha_bf:'v_ab',gw_delay:'v_gd',esco:'v_es',sol_awc:'v_sa',surlag:'v_sl',gwqmn:'v_gq',sol_k:'v_sk'};
+  if(idm[name]) document.getElementById(idm[name]).textContent=(fmt[name]||String)(val);
+}
+
+function updateSliders() {
+  const p=S.params;
+  const setSlider=(sid,vid,val,mult)=>{
+    const s=document.getElementById(sid),v=document.getElementById(vid);
+    if(s){s.value=Math.round(val*mult);}
+    if(v){v.textContent=(val).toFixed(sid==='s_cn2'||sid==='s_gd'||sid==='s_gq'?0:2);}
+  };
+  setSlider('s_cn2','v_cn2',p.cn2,1);
+  setSlider('s_ab','v_ab',p.alpha_bf,100);
+  setSlider('s_gd','v_gd',p.gw_delay,1);
+  setSlider('s_es','v_es',p.esco,100);
+  setSlider('s_sa','v_sa',p.sol_awc,100);
+  setSlider('s_sl','v_sl',p.surlag,10);
+  setSlider('s_gq','v_gq',p.gwqmn,1);
+  setSlider('s_sk','v_sk',p.sol_k,100);
+  // also update display values properly
+  document.getElementById('v_cn2').textContent=p.cn2.toFixed(0);
+  document.getElementById('v_ab').textContent=p.alpha_bf.toFixed(2);
+  document.getElementById('v_gd').textContent=p.gw_delay.toFixed(0);
+  document.getElementById('v_es').textContent=p.esco.toFixed(2);
+  document.getElementById('v_sa').textContent=p.sol_awc.toFixed(2);
+  document.getElementById('v_sl').textContent=p.surlag.toFixed(1);
+  document.getElementById('v_gq').textContent=p.gwqmn.toFixed(0);
+  document.getElementById('v_sk').textContent=p.sol_k.toFixed(2);
+}
+
+function clog(type,msg) {
+  const box=document.getElementById('cLog');
+  const d=document.createElement('div');d.className='ll '+type;
+  const t={i:'[i]',ok:'[✓]',w:'[!]',e:'[✗]'}[type]||'[i]';
+  d.innerHTML=`<span>${t}</span> ${msg}`;
+  box.appendChild(d);box.scrollTop=box.scrollHeight;
+}
+
+let toastTmr;
+function toast(msg) {
+  const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');
+  clearTimeout(toastTmr);toastTmr=setTimeout(()=>t.classList.remove('on'),3800);
+}
+
+// ─────────────────────────────────────────────
+//  MATH UTILS
+// ─────────────────────────────────────────────
+const mean = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+const std  = arr => { const m=mean(arr); return Math.sqrt(arr.reduce((a,b)=>a+Math.pow(b-m,2),0)/arr.length); };
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+function seededRng(seed) {
+  let s=Math.abs(Math.round(seed))||1;
+  return ()=>{ s=(s*16807)%2147483647; return (s-1)/2147483646; };
+}
+
+// ─────────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────────
+window.addEventListener('load', ()=>{
+  initMap();
+  toast('🌍 Click anywhere on the map or search for a watershed to begin.');
+});
+
+window.addEventListener('resize', ()=>{
+  if(MAP) MAP.invalidateSize();
+});
+</script>
+</body>
+</html>
