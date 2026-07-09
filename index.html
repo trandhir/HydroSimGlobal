@@ -26,12 +26,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 :root{
-  /* Deep slate-teal base — softer than pure black, easier on the eyes */
-  --bg:#0b1418;--surf:#12202a;--surf2:#182b38;--surf3:#1f3745;
-  --bord:#264556;--bord2:#33586b;
+  /* Slate-teal base — lightened for a softer, less heavy dark theme */
+  --bg:#152531;--surf:#1d3242;--surf2:#25404f;--surf3:#2e4d5e;
+  --bord:#3a5d72;--bord2:#4a7189;
   /* Water-inspired accents: glacier cyan, spring aqua, warm sand, coral, sunset */
   --c1:#38bdf8;--c2:#34d399;--amber:#fbbf24;--red:#fb7185;--orange:#fb923c;
-  --txt:#e2eef5;--txt2:#8aa6ba;--txt3:#7597ad;
+  --txt:#eaf3f9;--txt2:#9fb8ca;--txt3:#7f9fb4;
   --mono:'IBM Plex Mono',monospace;--sans:'Outfit',sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -128,18 +128,18 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
 
 /* map overlay controls */
 .map-ctrl{position:absolute;top:10px;right:10px;z-index:400;display:flex;flex-direction:column;gap:5px;}
-.mc-btn{width:30px;height:30px;background:rgba(18,32,42,.92);border:1px solid var(--bord2);border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--txt2);font-size:12px;transition:.12s;backdrop-filter:blur(4px);}
+.mc-btn{width:30px;height:30px;background:rgba(29,50,66,.92);border:1px solid var(--bord2);border-radius:4px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--txt2);font-size:12px;transition:.12s;backdrop-filter:blur(4px);}
 .mc-btn:hover{border-color:var(--c1);color:var(--c1);}
 .mc-btn.on{border-color:var(--c1);color:var(--c1);background:rgba(56,189,248,.1);}
 
 /* watershed info card */
-.ws-card{position:absolute;bottom:10px;left:10px;z-index:400;background:rgba(18,32,42,.94);border:1px solid var(--bord2);border-radius:7px;padding:10px 13px;font-family:var(--mono);font-size:9px;min-width:230px;backdrop-filter:blur(8px);display:none;}
+.ws-card{position:absolute;bottom:10px;left:10px;z-index:400;background:rgba(29,50,66,.94);border:1px solid var(--bord2);border-radius:7px;padding:10px 13px;font-family:var(--mono);font-size:9px;min-width:230px;backdrop-filter:blur(8px);display:none;}
 .wc-row{display:flex;justify-content:space-between;gap:16px;margin-bottom:3px;}
 .wc-k{color:var(--txt2);}
 .wc-v{color:var(--c1);font-weight:600;}
 
 /* data loading overlay on map */
-.map-loading{position:absolute;inset:0;z-index:500;background:rgba(11,20,24,.75);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;backdrop-filter:blur(4px);}
+.map-loading{position:absolute;inset:0;z-index:500;background:rgba(21,37,49,.78);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;backdrop-filter:blur(4px);}
 .map-loading.show{display:flex;}
 .spin{width:36px;height:36px;border:3px solid var(--bord2);border-top-color:var(--c1);border-radius:50%;animation:spin .8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -159,7 +159,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
 .ss b{color:var(--c1);}
 
 /* ── OVERLAY PANELS ── */
-.panel{display:none;position:absolute;inset:0;z-index:1200;background:rgba(11,20,24,.97);overflow-y:auto;padding:18px;backdrop-filter:blur(4px);}
+.panel{display:none;position:absolute;inset:0;z-index:1200;background:rgba(21,37,49,.97);overflow-y:auto;padding:18px;backdrop-filter:blur(4px);}
 .panel.open{display:block;}
 .ph{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;max-width:1360px;margin-left:auto;margin-right:auto;}
 .pt{font-size:19px;font-weight:900;}
@@ -191,7 +191,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
 .cite-copy.done{border-color:var(--c2);color:var(--c2);}
 .ptbl{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:9px;}
 .ptbl th{color:var(--txt3);padding:3px 5px;border-bottom:1px solid var(--bord);text-align:left;font-weight:500;}
-.ptbl td{padding:4px 5px;color:var(--txt2);border-bottom:1px solid #080e18;}
+.ptbl td{padding:4px 5px;color:var(--txt2);border-bottom:1px solid #122029;}
 .ptbl td input,.ptbl td select{background:var(--surf2);border:1px solid var(--bord);color:var(--txt);padding:2px 4px;font-family:var(--mono);font-size:9px;border-radius:3px;outline:none;width:100%;}
 .ptbl tr:hover td{background:var(--surf2);}
 .bv{color:var(--c2)!important;font-weight:700;}
@@ -211,7 +211,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
 .toast.on{transform:translateX(-50%) translateY(0);opacity:1;}
 
 /* Leaflet overrides for dark theme */
-.leaflet-control-zoom a{background:rgba(18,32,42,.92)!important;color:var(--txt)!important;border-color:var(--bord2)!important;}
+.leaflet-control-zoom a{background:rgba(29,50,66,.92)!important;color:var(--txt)!important;border-color:var(--bord2)!important;}
 .leaflet-control-zoom a:hover{background:var(--surf3)!important;color:var(--c1)!important;}
 .leaflet-bar{border:1px solid var(--bord2)!important;box-shadow:none!important;}
 </style>
@@ -604,11 +604,12 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
 
     <!-- layer controls -->
     <div class="map-ctrl">
-      <div class="mc-btn on"  id="btnOSM"  title="Dark base map"  onclick="setTile('dark')">🌑</div>
-      <div class="mc-btn"     id="btnSat"  title="Satellite"      onclick="setTile('sat')">🛰</div>
-      <div class="mc-btn"     id="btnTopo" title="Terrain"        onclick="setTile('topo')">🏔</div>
-      <div class="mc-btn"     id="btnReset" title="Reset view"    onclick="mapReset()">⌂</div>
-      <div class="mc-btn"     id="btnCirc" title="Watershed area" onclick="toggleCircle()">🌀</div>
+      <div class="mc-btn on"  id="btnLight" title="Light base map"  onclick="setTile('light')">🗺</div>
+      <div class="mc-btn"     id="btnOSM"  title="Dark base map"   onclick="setTile('dark')">🌑</div>
+      <div class="mc-btn"     id="btnSat"  title="Satellite"       onclick="setTile('sat')">🛰</div>
+      <div class="mc-btn"     id="btnTopo" title="Terrain"         onclick="setTile('topo')">🏔</div>
+      <div class="mc-btn"     id="btnReset" title="Reset view"     onclick="mapReset()">⌂</div>
+      <div class="mc-btn"     id="btnCirc" title="Watershed area"  onclick="toggleCircle()">🌀</div>
     </div>
 
     <!-- watershed info card -->
@@ -695,14 +696,15 @@ const S = {                    // app state
 let MAP, pin, circle, tileLayer, circleOn = true;
 
 const TILES = {
-  dark: { url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', sub:'abcd' },
-  sat:  { url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', sub:'' },
-  topo: { url:'https://tile.opentopomap.org/{z}/{x}/{y}.png', sub:'' },
+  light: { url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', sub:'abcd' },
+  dark:  { url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', sub:'abcd' },
+  sat:   { url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', sub:'' },
+  topo:  { url:'https://tile.opentopomap.org/{z}/{x}/{y}.png', sub:'' },
 };
 
 function initMap() {
   MAP = L.map('map', { center:[20,0], zoom:2, zoomControl:true, attributionControl:false });
-  tileLayer = L.tileLayer(TILES.dark.url,{ subdomains:'abcd', maxZoom:19 }).addTo(MAP);
+  tileLayer = L.tileLayer(TILES.light.url,{ subdomains:'abcd', maxZoom:19 }).addTo(MAP);
   MAP.on('click', e => {
     const {lat,lng} = e.latlng;
     document.getElementById('latI').value = lat.toFixed(5);
@@ -717,10 +719,10 @@ function initMap() {
 
 function setTile(t) {
   if (tileLayer) MAP.removeLayer(tileLayer);
-  const cfg = TILES[t] || TILES.dark;
+  const cfg = TILES[t] || TILES.light;
   tileLayer = L.tileLayer(cfg.url, { subdomains: cfg.sub||'abc', maxZoom:19 }).addTo(MAP);
   document.querySelectorAll('.mc-btn').forEach(b=>b.classList.remove('on'));
-  const map = {dark:'btnOSM',sat:'btnSat',topo:'btnTopo'};
+  const map = {light:'btnLight',dark:'btnOSM',sat:'btnSat',topo:'btnTopo'};
   if (map[t]) document.getElementById(map[t]).classList.add('on');
 }
 
@@ -740,7 +742,7 @@ function placePin(lat, lon, label) {
 function drawCircle(lat, lon, areaKm2) {
   if (circle) MAP.removeLayer(circle);
   const r = Math.sqrt(areaKm2*1e6/Math.PI);
-  circle = L.circle([lat,lon],{radius:r,color:'#38bdf8',weight:1.5,dashArray:'6 4',fillColor:'#38bdf8',fillOpacity:.07}).addTo(MAP);
+  circle = L.circle([lat,lon],{radius:r,color:'#0369a1',weight:2,dashArray:'6 4',fillColor:'#38bdf8',fillOpacity:.12}).addTo(MAP);
 }
 
 function toggleCircle() {
@@ -1892,7 +1894,7 @@ function drawBasinPolygon(geometry) {
   if (S._basinLayer) MAP.removeLayer(S._basinLayer);
   try {
     S._basinLayer = L.geoJSON(geometry, {
-      style: { color:'#38bdf8', weight:2, dashArray:'6 4', fillColor:'#38bdf8', fillOpacity:0.07 }
+      style: { color:'#0369a1', weight:2.5, dashArray:'6 4', fillColor:'#38bdf8', fillOpacity:0.14 }
     }).addTo(MAP);
     MAP.fitBounds(S._basinLayer.getBounds(), { padding:[30,30] });
   } catch {}
@@ -2280,7 +2282,7 @@ function drawDotty(data) {
   keys.forEach((k,pi)=>{
     const pts=data[k]; if(!pts.length) return;
     const x0=pi*pw,w=pw-2;
-    ctx.fillStyle='rgba(11,20,24,.85)';ctx.fillRect(x0+1,0,w,H);
+    ctx.fillStyle='rgba(21,37,49,.88)';ctx.fillRect(x0+1,0,w,H);
     ctx.strokeStyle='rgba(26,38,64,.7)';ctx.lineWidth=.5;ctx.strokeRect(x0+1,0,w,H);
     const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y);
     const xlo=Math.min(...xs),xhi=Math.max(...xs)||1;
