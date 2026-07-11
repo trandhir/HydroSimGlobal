@@ -1045,6 +1045,77 @@ function getBbox(coords) {
   };
 }
 
+// Ray-casting point-in-polygon test for a single linear ring ([lon,lat] pairs).
+function pointInRing(lon, lat, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    const intersect = ((yi > lat) !== (yj > lat)) &&
+      (lon < (xj - xi) * (lat - yi) / (yj - yi + 1e-15) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+// True if a point lies inside a GeoJSON Polygon/MultiPolygon geometry,
+// honouring holes (interior rings subtract).
+function pointInGeometry(lon, lat, geometry) {
+  if (!geometry) return true; // no polygon → don't constrain
+  const polys = geometry.type === 'MultiPolygon' ? geometry.coordinates : [geometry.coordinates];
+  for (const poly of polys) {
+    if (!poly.length) continue;
+    if (pointInRing(lon, lat, poly[0])) {           // inside outer ring
+      let inHole = false;
+      for (let h = 1; h < poly.length; h++) {
+        if (pointInRing(lon, lat, poly[h])) { inHole = true; break; }
+      }
+      if (!inHole) return true;
+    }
+  }
+  return false;
+}
+
+// Generate up to `maxPts` sample points that fall INSIDE the basin polygon.
+// Falls back to bbox-grid points when no polygon is available. This ensures
+// climate/soil/terrain data are sampled from within the true watershed rather
+// than the (often much larger) bounding rectangle — critical for long, narrow,
+// or diagonally-oriented basins such as the Magdalena.
+function basinSamplePoints(lat, lon, bbox, geometry, maxPts) {
+  const pts = [{ lat, lon }];                        // always include the outlet
+  if (!bbox) return pts;
+  const dLat = bbox.maxLat - bbox.minLat;
+  const dLon = bbox.maxLon - bbox.minLon;
+
+  if (!geometry) {
+    // No polygon: fall back to a coarse bbox grid (previous behaviour).
+    if (dLat > 0.5 && dLon > 0.5) pts.push({ lat:(bbox.minLat+bbox.maxLat)/2, lon:(bbox.minLon+bbox.maxLon)/2 });
+    if (dLat > 1.5 && dLon > 1.5) {
+      pts.push({ lat: bbox.minLat + dLat*0.75, lon: bbox.minLon + dLon*0.25 });
+      pts.push({ lat: bbox.minLat + dLat*0.25, lon: bbox.minLon + dLon*0.75 });
+    }
+    return pts.slice(0, maxPts);
+  }
+
+  // Dense candidate grid across the bbox; keep only those inside the polygon.
+  const rows = 9, cols = 9;
+  const inside = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const la = bbox.minLat + (r + 0.5) * dLat / rows;
+      const lo = bbox.minLon + (c + 0.5) * dLon / cols;
+      if (pointInGeometry(lo, la, geometry)) inside.push({ lat:+la.toFixed(4), lon:+lo.toFixed(4) });
+    }
+  }
+  if (!inside.length) return pts;                    // degenerate — just use outlet
+
+  // Spread the selection: take evenly-spaced samples from the interior set.
+  const want = Math.max(1, maxPts - 1);
+  const step = Math.max(1, Math.floor(inside.length / want));
+  for (let i = 0; i < inside.length && pts.length < maxPts; i += step) pts.push(inside[i]);
+  return pts.slice(0, maxPts);
+}
+
 function estimateAreaFromBbox(bbox) {
   const dLat = bbox.maxLat - bbox.minLat;
   const dLon = bbox.maxLon - bbox.minLon;
@@ -1063,7 +1134,7 @@ function estimateBasinArea(lat, lon) {
 //  Grid-sample across basin bounding box
 //  Open-Meteo archive API — free, no key needed
 // ─────────────────────────────────────────────
-async function fetchClimate(lat, lon, years, bbox) {
+async function fetchClimate(lat, lon, years, bbox, polygon) {
   setBadge('b_met','load','ERA5…');
   setLoadStep('Step 2/5 — Fetching basin-wide ERA5 climate (Open-Meteo)…');
 
@@ -1076,7 +1147,7 @@ async function fetchClimate(lat, lon, years, bbox) {
 
   // Build spatial grid across basin bounding box (up to 4 points for averaging)
   // ERA5 is 0.25° so spacing by ~0.5° gives independent samples
-  const gridPts = buildClimateGrid(lat, lon, bbox);
+  const gridPts = basinSamplePoints(lat, lon, bbox, polygon, 4);
   setLoadStep(`Step 2/5 — Fetching ERA5 at ${gridPts.length} basin grid points…`);
 
   try {
@@ -1178,12 +1249,12 @@ function syntheticClimate(lat, lon, years) {
 //  STEP 3 · SPATIAL DEM — SRTM 90m
 //  Sample at 25 points across basin bbox
 // ─────────────────────────────────────────────
-async function fetchDEM(lat, lon, bbox) {
+async function fetchDEM(lat, lon, bbox, polygon) {
   setBadge('b_dem','load','SRTM…');
   setLoadStep('Step 3/5 — Sampling SRTM 90m DEM across basin…');
 
   // Build grid of sample points across basin
-  const pts = buildDEMGrid(lat, lon, bbox, 25);
+  const pts = basinSamplePoints(lat, lon, bbox, polygon, 25);
   const locStr = pts.slice(0,20).map(p=>`${p.lat.toFixed(4)},${p.lon.toFixed(4)}`).join('|');
 
   try {
@@ -1249,13 +1320,13 @@ function estimateSampleSpacing(bbox, nPts) {
 //  STEP 4 · SPATIAL SOIL — ISRIC SoilGrids v2
 //  Average across 5 basin sample points
 // ─────────────────────────────────────────────
-async function fetchSoil(lat, lon, bbox) {
+async function fetchSoil(lat, lon, bbox, polygon) {
   setBadge('b_soil','load','SoilGrids…');
   setLoadStep('Step 4/5 — Fetching basin-average soil from ISRIC SoilGrids…');
 
   const props = 'clay,sand,soc,bdod,wv0033,wv1500';
   // Sample at outlet + up to 4 interior basin points
-  const pts = buildSoilGrid(lat, lon, bbox);
+  const pts = basinSamplePoints(lat, lon, bbox, polygon, 5);
   const results = [];
 
   for (const pt of pts) {
@@ -1766,10 +1837,13 @@ async function loadWatershed() {
   placePin(S.lat, S.lon, S.name || `${S.lat.toFixed(2)}°N`);
 
   // ── STEPS 2–4: Fetch spatially distributed data ───
+  // Pass the delineated polygon so sampling stays INSIDE the true watershed,
+  // not the bounding rectangle (which for narrow/diagonal basins covers areas
+  // well outside the catchment).
   const [climate, dem, soil] = await Promise.all([
-    fetchClimate(S.lat, S.lon, years, basin.bbox),
-    fetchDEM(S.lat, S.lon, basin.bbox),
-    fetchSoil(S.lat, S.lon, basin.bbox),
+    fetchClimate(S.lat, S.lon, years, basin.bbox, basin.polygon),
+    fetchDEM(S.lat, S.lon, basin.bbox, basin.polygon),
+    fetchSoil(S.lat, S.lon, basin.bbox, basin.polygon),
   ]);
 
   S.climate = climate; S.dem = dem; S.soil = soil;
