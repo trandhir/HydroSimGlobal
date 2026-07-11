@@ -56,6 +56,8 @@ html,body{height:100%;overflow:hidden;font-family:var(--sans);background:var(--b
 .badge.off{border-color:var(--txt3);color:var(--txt3);}
 .hbtn{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--c1);background:transparent;border:1px solid var(--bord2);padding:3px 9px;border-radius:5px;cursor:pointer;transition:.15s;white-space:nowrap;}
 .hbtn:hover{background:var(--surf3);border-color:var(--c1);color:var(--txt);}
+.anote{font-family:var(--mono);font-size:10px;color:var(--txt2);margin-top:8px;line-height:1.7;padding:7px 9px;background:var(--bg);border-radius:5px;border:1px solid var(--bord);}
+.anote b{color:var(--c1);}
 
 /* ── LAYOUT ── */
 .body{display:flex;flex:1;overflow:hidden;height:calc(100vh - 46px - 20px);}
@@ -224,6 +226,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
     <button class="tab on"  onclick="setTab('sim',this)">Simulation</button>
     <button class="tab"     onclick="setTab('calib',this)">Calibration</button>
     <button class="tab"     onclick="setTab('results',this)">Results</button>
+    <button class="tab"     onclick="setTab('analysis',this)">Analysis</button>
     <button class="tab"     onclick="setTab('export',this)">Export</button>
   </div>
   <div class="hdr-right">
@@ -411,6 +414,57 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
     </div>
   </div>
 
+  <!-- ADVANCED ANALYSIS panel -->
+  <div class="panel" id="panAnalysis">
+    <div class="ph">
+      <div class="pt"><em>Advanced</em> Analysis &amp; Uncertainty</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-c" style="width:auto;padding:6px 16px" onclick="runAnalysis()">⚡ Run Analysis</button>
+        <button class="btn btn-ghost" style="padding:6px 10px" onclick="setTab('sim',document.querySelector('.tab'))">✕</button>
+      </div>
+    </div>
+    <div class="pg pg-2" style="gap:12px">
+
+      <div class="card" style="grid-column:1/-1">
+        <h3>Uncertainty Propagation — Monte Carlo 95% Confidence Band</h3>
+        <p class="ptxt" style="font-size:11px;color:var(--txt2);margin-bottom:6px">Forward-propagates parameter &amp; input uncertainty through the model (N ensemble runs) to bound the daily hydrograph. Wider bands = less certain prediction.</p>
+        <canvas id="aUnc" style="width:100%;height:210px"></canvas>
+        <div id="aUncStats" class="anote"></div>
+      </div>
+
+      <div class="card">
+        <h3>Hydrological Signatures</h3>
+        <table class="ptbl"><tbody id="aSig"><tr><td colspan="3" style="color:var(--txt3);text-align:center;padding:8px">Run analysis to compute signatures</td></tr></tbody></table>
+      </div>
+
+      <div class="card">
+        <h3>Climate Elasticity of Streamflow</h3>
+        <p class="ptxt" style="font-size:11px;color:var(--txt2)">Sensitivity of runoff to changes in precipitation &amp; temperature (Sankarasubramanian et al. 2001).</p>
+        <table class="ptbl"><tbody id="aElas"><tr><td colspan="2" style="color:var(--txt3);text-align:center;padding:8px">—</td></tr></tbody></table>
+        <div id="aElasNote" class="anote"></div>
+      </div>
+
+      <div class="card">
+        <h3>Flood Frequency — Return Periods</h3>
+        <p class="ptxt" style="font-size:11px;color:var(--txt2)">Annual-maxima series fit to a Gumbel (EV1) distribution.</p>
+        <table class="ptbl"><thead><tr><th>Return period</th><th>Discharge (m³/s)</th><th>AEP</th></tr></thead><tbody id="aFlood"><tr><td colspan="3" style="color:var(--txt3);text-align:center;padding:8px">—</td></tr></tbody></table>
+      </div>
+
+      <div class="card">
+        <h3>Low-Flow &amp; Drought</h3>
+        <p class="ptxt" style="font-size:11px;color:var(--txt2)">7-day low flows, 7Q10 design drought, and cumulative-deficit drought events.</p>
+        <table class="ptbl"><tbody id="aDrought"><tr><td colspan="2" style="color:var(--txt3);text-align:center;padding:8px">—</td></tr></tbody></table>
+      </div>
+
+      <div class="card" style="grid-column:1/-1">
+        <h3>Trend Analysis — Mann-Kendall &amp; Sen's Slope</h3>
+        <p class="ptxt" style="font-size:11px;color:var(--txt2)">Non-parametric trend test on annual mean flow, annual peak, and annual minimum. τ = Kendall's tau; p &lt; 0.05 indicates a statistically significant monotonic trend.</p>
+        <table class="ptbl"><thead><tr><th>Series</th><th>Kendall τ</th><th>p-value</th><th>Sen slope (m³/s/yr)</th><th>Trend</th></tr></thead><tbody id="aTrend"><tr><td colspan="5" style="color:var(--txt3);text-align:center;padding:8px">Run analysis (needs ≥5 years)</td></tr></tbody></table>
+      </div>
+
+    </div>
+  </div>
+
   <!-- export panel -->
   <div class="panel" id="panExport">
     <div class="ph">
@@ -486,9 +540,12 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
           <tr><td>Sampling</td><td>Latin Hypercube (stratified) — SUFI-2, PSO, GLUE, ParaSol</td></tr>
           <tr><td>Objectives</td><td>NSE, KGE′ (2012), log-NSE, NSE+logNSE, PBIAS, R²</td></tr>
           <tr><td>Validation</td><td>70/30 temporal split; 1-year warmup (spin-up) excluded</td></tr>
-          <tr><td>Uncertainty</td><td>GLUE 95PPU band with P-factor &amp; R-factor</td></tr>
+          <tr><td>Uncertainty</td><td>GLUE 95PPU (P/R-factor) + Monte Carlo forward propagation (95% band)</td></tr>
           <tr><td>Sensitivity</td><td>t-stat multiple-regression ranking of parameters</td></tr>
-          <tr><td>Signatures</td><td>Baseflow index, Richards-Baker flashiness, flow-duration Q5/Q95</td></tr>
+          <tr><td>Signatures</td><td>BFI, R-B flashiness, runoff ratio, FDC slope, pulse counts, Q5/Q50/Q95</td></tr>
+          <tr><td>Extremes</td><td>Gumbel (EV1) flood return periods; 7Q10 low-flow &amp; drought-deficit analysis</td></tr>
+          <tr><td>Climate</td><td>Precipitation &amp; temperature elasticity of streamflow (Sankarasubramanian 2001)</td></tr>
+          <tr><td>Trends</td><td>Mann-Kendall test + Sen's slope on annual mean/peak/minimum flow</td></tr>
         </table>
       </div>
 
@@ -563,6 +620,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
           <tr><td>Simulation</td><td>Main screen — pick location, set parameters, run the model, see live charts</td></tr>
           <tr><td>Calibration</td><td>Auto-tune parameters (SUFI-2/PSO/GLUE), set ranges, watch dotty plots &amp; sensitivity, get calibration + validation NSE</td></tr>
           <tr><td>Results</td><td>Monthly sim-vs-obs, flow-duration curve, annual water balance, obs-vs-sim scatter</td></tr>
+          <tr><td>Analysis</td><td>Advanced analytics — Monte Carlo uncertainty band, hydrological signatures, climate elasticity, flood return periods, drought/low-flow, Mann-Kendall trends</td></tr>
           <tr><td>Export</td><td>Preview SWAT+ output.rch / .hru / .sub, climate &amp; soil CSVs, best-parameter file, 95PPU band</td></tr>
         </table>
       </div>
@@ -2244,6 +2302,336 @@ function flowSignatures(flow, baseflow) {
   return { meanQ, q5, q95, bfi, rbi };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  ADVANCED ANALYSIS  — uncertainty, signatures, elasticity, extremes, trends
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Split a daily series into water-years (365-day blocks after warmup).
+function annualBlocks(daily) {
+  const d = daily.slice(WARMUP_DAYS);
+  const yrs = Math.floor(d.length/365);
+  const out = [];
+  for (let y=0; y<yrs; y++) out.push(d.slice(y*365,(y+1)*365));
+  return out;
+}
+
+// ── Extended hydrological signatures ──────────────────────────
+function extendedSignatures(r) {
+  const f = r.flow.slice(WARMUP_DAYS);
+  const P = r.P.slice(WARMUP_DAYS);
+  const sorted = [...f].sort((a,b)=>b-a);
+  const pct = p => sorted[Math.min(sorted.length-1, Math.floor(sorted.length*p))] || 0;
+  const q5=pct(0.05), q50=pct(0.50), q95=pct(0.95), q10=pct(0.10), q90=pct(0.90);
+  const meanQ = mean(f);
+  const bf = (r.bfQ||[]).slice(WARMUP_DAYS);
+  const bfi = Math.max(0, Math.min(1, bf.reduce((a,b)=>a+b,0)/(f.reduce((a,b)=>a+b,0)||1)));
+  let absDiff=0; for(let i=1;i<f.length;i++) absDiff+=Math.abs(f[i]-f[i-1]);
+  const rbi = absDiff/(f.reduce((a,b)=>a+b,0)||1);
+  // Runoff ratio (Q depth / P depth)
+  const mmFromCms = 86400/((r.areaKm2||1000)*1000);
+  const Qmm = f.reduce((a,b)=>a+b,0)*mmFromCms;
+  const Pmm = P.reduce((a,b)=>a+b,0);
+  const runoffRatio = Pmm>0 ? Qmm/Pmm : 0;
+  // FDC slope (Sawicz 2011): slope between 33rd & 66th percentile of log-flow
+  const l33=Math.log(pct(0.33)+1e-6), l66=Math.log(pct(0.66)+1e-6);
+  const fdcSlope = (l33-l66)/(0.66-0.33);
+  // High/low pulse counts (relative to median) & mean durations
+  const hiThresh=q50*3, loThresh=q50*0.2;
+  let hiPulses=0, loPulses=0, inHi=false, inLo=false;
+  for(const q of f){
+    if(q>hiThresh){ if(!inHi){hiPulses++;inHi=true;} } else inHi=false;
+    if(q<loThresh){ if(!inLo){loPulses++;inLo=true;} } else inLo=false;
+  }
+  // Rising limb density (# rising days / total)
+  let rising=0; for(let i=1;i<f.length;i++) if(f[i]>f[i-1]) rising++;
+  const rld = rising/f.length;
+  const yrs = Math.floor(f.length/365);
+  return { meanQ, q5, q50, q95, q10, q90, bfi, rbi, runoffRatio, fdcSlope,
+           hiPulsesPerYr:hiPulses/Math.max(1,yrs), loPulsesPerYr:loPulses/Math.max(1,yrs), rld };
+}
+
+// ── Climate elasticity of streamflow (Sankarasubramanian et al. 2001) ──
+// Non-parametric estimator: median of (dQ/Q)/(dP/P) across years.
+function climateElasticity(r) {
+  const yrsQ = annualBlocks(r.flow).map(b=>mean(b));
+  const yrsP = annualBlocks(r.P).map(b=>b.reduce((a,c)=>a+c,0));
+  const yrsT = annualBlocks(r.Tx).map((b,i)=>{
+    const tn=annualBlocks(r.Tn)[i]; return mean(b.map((x,j)=>(x+tn[j])/2));
+  });
+  const mQ=mean(yrsQ), mP=mean(yrsP), mT=mean(yrsT);
+  if(yrsQ.length<3 || mQ<=0 || mP<=0) return null;
+  // Precipitation elasticity (non-parametric, Sankarasubramanian)
+  const epVals=[], etVals=[];
+  for(let i=0;i<yrsQ.length;i++){
+    const dQ=(yrsQ[i]-mQ)/mQ;
+    const dP=(yrsP[i]-mP)/mP;
+    const dT=yrsT[i]-mT;
+    if(Math.abs(dP)>1e-4) epVals.push(dQ/dP);
+    if(Math.abs(dT)>1e-3) etVals.push(dQ/dT); // per °C (fractional)
+  }
+  const median = a => { if(!a.length) return null; const s=[...a].sort((x,y)=>x-y); const m=Math.floor(s.length/2); return s.length%2?s[m]:(s[m-1]+s[m])/2; };
+  return { ep: median(epVals), et: median(etVals), nYears: yrsQ.length };
+}
+
+// ── Gumbel (EV1) flood-frequency on annual maxima ─────────────
+function floodFrequency(r) {
+  const maxima = annualBlocks(r.flow).map(b=>Math.max(...b));
+  if(maxima.length<3) return null;
+  const m=mean(maxima), s=std(maxima);
+  // Method of moments for Gumbel: β=s√6/π, μ=m−0.5772β
+  const beta=s*Math.sqrt(6)/Math.PI, mu=m-0.5772*beta;
+  const periods=[2,5,10,25,50,100];
+  const rows=periods.map(T=>{
+    const y=-Math.log(-Math.log(1-1/T));      // reduced variate
+    const Q=mu+beta*y;
+    return { T, Q: Math.max(0,Q), aep:(1/T) };
+  });
+  return { rows, nYears:maxima.length, mean:m, std:s };
+}
+
+// ── Low-flow / drought analysis ───────────────────────────────
+function droughtAnalysis(r) {
+  const f = r.flow.slice(WARMUP_DAYS);
+  // 7-day moving minimum per year → annual 7-day low flows
+  const blocks = annualBlocks(r.flow);
+  const min7=[];
+  for(const b of blocks){
+    let mn=Infinity;
+    for(let i=0;i+7<=b.length;i++){ const avg=mean(b.slice(i,i+7)); if(avg<mn) mn=avg; }
+    if(isFinite(mn)) min7.push(mn);
+  }
+  // 7Q10: 10-yr return-period 7-day low flow via log-Gumbel on annual minima
+  let q7q10=null;
+  if(min7.length>=3){
+    const logs=min7.map(v=>Math.log(v+1e-6));
+    const m=mean(logs), s=std(logs);
+    const beta=s*Math.sqrt(6)/Math.PI, mu=m-0.5772*beta;
+    const y=-Math.log(-Math.log(1-1/10)); // for LOW flow use lower tail
+    q7q10=Math.exp(mu-beta*y);
+  }
+  // Cumulative-deficit drought events below Q80 threshold
+  const sorted=[...f].sort((a,b)=>b-a);
+  const q80=sorted[Math.floor(sorted.length*0.80)]||0;
+  let events=0, inDrought=false, maxDeficit=0, curDeficit=0, maxDur=0, curDur=0;
+  for(const q of f){
+    if(q<q80){ if(!inDrought){events++;inDrought=true;curDeficit=0;curDur=0;} curDeficit+=(q80-q)*0.0864; curDur++; // Mm³
+      if(curDeficit>maxDeficit)maxDeficit=curDeficit; if(curDur>maxDur)maxDur=curDur;
+    } else inDrought=false;
+  }
+  return { min7mean: min7.length?mean(min7):null, q7q10, q80, droughtEvents:events,
+           maxDeficitMm3:maxDeficit, maxDurationDays:maxDur, nYears:blocks.length };
+}
+
+// ── Mann-Kendall trend test + Sen's slope ─────────────────────
+function mannKendall(series){
+  const n=series.length;
+  if(n<4) return null;
+  let S=0;
+  for(let i=0;i<n-1;i++) for(let j=i+1;j<n;j++) S+=Math.sign(series[j]-series[i]);
+  // Variance (no ties correction for simplicity; fine for continuous flow)
+  const varS=n*(n-1)*(2*n+5)/18;
+  let Z=0;
+  if(S>0) Z=(S-1)/Math.sqrt(varS); else if(S<0) Z=(S+1)/Math.sqrt(varS);
+  // Two-sided p-value from standard normal
+  const p=2*(1-normalCDF(Math.abs(Z)));
+  // Sen's slope: median of pairwise slopes
+  const slopes=[];
+  for(let i=0;i<n-1;i++) for(let j=i+1;j<n;j++) slopes.push((series[j]-series[i])/(j-i));
+  slopes.sort((a,b)=>a-b);
+  const sen=slopes.length%2?slopes[(slopes.length-1)/2]:(slopes[slopes.length/2-1]+slopes[slopes.length/2])/2;
+  const tau=S/(0.5*n*(n-1));
+  return { tau, p, sen, S, n, sig:p<0.05 };
+}
+function normalCDF(x){ return 0.5*(1+erf(x/Math.SQRT2)); }
+function erf(x){
+  const t=1/(1+0.3275911*Math.abs(x));
+  const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-0.284496736)*t+0.254829592)*t*Math.exp(-x*x);
+  return x>=0?y:-y;
+}
+
+// ── Monte Carlo uncertainty band around the hydrograph ────────
+// Perturbs calibrated (or current) parameters within physical bounds and
+// re-runs the model N times to build a 95% prediction band.
+function uncertaintyEnsemble(nRuns) {
+  if(!S.climate || !S.wsData) return null;
+  const base = { ...(S.calibBest || S.params), coverFact: S.lc?.coverFact || 0.005 };
+  const ws = { ...S.wsData, lcCode:S.lc?.lcCode };
+  // Relative perturbation ranges per parameter (parameter uncertainty)
+  const perturb = { cn2:0.08, alpha_bf:0.30, gw_delay:0.30, esco:0.10,
+                    sol_awc:0.20, gwqmn:0.35, sol_k:0.30, surlag:0.30 };
+  const runs=[];
+  for(let k=0;k<nRuns;k++){
+    const p={...base};
+    for(const key in perturb){
+      if(p[key]==null) continue;
+      const rng=(Math.random()*2-1)*perturb[key];
+      p[key]=p[key]*(1+rng);
+    }
+    // Input uncertainty: ±10% multiplicative precip bias per realization
+    const clim = k===0 ? S.climate : perturbClimate(S.climate, 1+(Math.random()*2-1)*0.10);
+    try { runs.push(runSWAT(clim, p, ws).flow); } catch {}
+  }
+  if(runs.length<5) return null;
+  const nDays=Math.min(...runs.map(r=>r.length));
+  const lo=[],hi=[],med=[];
+  for(let i=0;i<nDays;i++){
+    const col=runs.map(r=>r[i]).sort((a,b)=>a-b);
+    lo.push(col[Math.floor(col.length*0.025)]);
+    med.push(col[Math.floor(col.length*0.5)]);
+    hi.push(col[Math.floor(col.length*0.975)]);
+  }
+  // Mean relative band width (uncertainty magnitude)
+  let relW=0,c=0;
+  for(let i=WARMUP_DAYS;i<nDays;i++){ if(med[i]>1e-6){ relW+=(hi[i]-lo[i])/med[i]; c++; } }
+  return { lo, hi, med, nRuns:runs.length, meanRelWidth: c?relW/c:0 };
+}
+function perturbClimate(climate, pFactor){
+  const d=climate.daily;
+  return { daily: { ...d, precipitation: d.precipitation.map(v=>v*pFactor) } };
+}
+
+// ── Orchestrator: run all analyses and render ─────────────────
+function runAnalysis() {
+  if(!S.simResult){ toast('⚠ Run a simulation first.'); return; }
+  const r = S.simResult;
+  toast('⚙ Running advanced analysis…');
+
+  // 1. Extended signatures
+  try {
+    const sig = extendedSignatures(r);
+    const rows = [
+      ['Mean flow', sig.meanQ.toFixed(2)+' m³/s'],
+      ['Runoff ratio (Q/P)', sig.runoffRatio.toFixed(3)],
+      ['Baseflow index (BFI)', sig.bfi.toFixed(3)],
+      ['Richards-Baker flashiness', sig.rbi.toFixed(3)],
+      ['Q5 (high flow)', sig.q5.toFixed(2)+' m³/s'],
+      ['Q50 (median)', sig.q50.toFixed(2)+' m³/s'],
+      ['Q95 (low flow)', sig.q95.toFixed(2)+' m³/s'],
+      ['FDC slope (33–66%)', sig.fdcSlope.toFixed(3)],
+      ['High-flow pulses/yr', sig.hiPulsesPerYr.toFixed(1)],
+      ['Low-flow pulses/yr', sig.loPulsesPerYr.toFixed(1)],
+      ['Rising-limb density', sig.rld.toFixed(3)],
+    ];
+    document.getElementById('aSig').innerHTML = rows.map(([k,v])=>
+      `<tr><td>${k}</td><td style="color:var(--txt);text-align:right">${v}</td></tr>`).join('');
+  } catch(e){ document.getElementById('aSig').innerHTML=`<tr><td colspan="2">Error: ${e.message}</td></tr>`; }
+
+  // 2. Climate elasticity
+  try {
+    const el = climateElasticity(r);
+    if(el){
+      const interp = Math.abs(el.ep)>2?'highly sensitive':Math.abs(el.ep)>1?'sensitive':'buffered';
+      document.getElementById('aElas').innerHTML =
+        `<tr><td>Precipitation elasticity (εP)</td><td style="color:var(--c1);text-align:right;font-weight:700">${el.ep!=null?el.ep.toFixed(2):'—'}</td></tr>`+
+        `<tr><td>Temperature elasticity (εT, /°C)</td><td style="color:var(--amber);text-align:right;font-weight:700">${el.et!=null?el.et.toFixed(3):'—'}</td></tr>`;
+      document.getElementById('aElasNote').innerHTML =
+        `εP = <b>${el.ep!=null?el.ep.toFixed(2):'—'}</b> means a 1% change in precipitation drives ≈${el.ep!=null?Math.abs(el.ep).toFixed(2):'—'}% change in annual runoff — this basin is <b>${interp}</b> to precipitation. Based on ${el.nYears} water-years.`;
+    } else {
+      document.getElementById('aElas').innerHTML=`<tr><td colspan="2" style="color:var(--txt3);text-align:center;padding:8px">Needs ≥3 years of variable climate</td></tr>`;
+      document.getElementById('aElasNote').innerHTML='';
+    }
+  } catch(e){ document.getElementById('aElasNote').textContent='Error: '+e.message; }
+
+  // 3. Flood frequency
+  try {
+    const ff = floodFrequency(r);
+    if(ff){
+      document.getElementById('aFlood').innerHTML = ff.rows.map(row=>
+        `<tr><td>${row.T}-year</td><td style="color:var(--red);text-align:right;font-weight:700">${row.Q.toFixed(0)}</td><td style="text-align:right">${(row.aep*100).toFixed(0)}%</td></tr>`).join('');
+    } else document.getElementById('aFlood').innerHTML=`<tr><td colspan="3" style="color:var(--txt3);text-align:center;padding:8px">Needs ≥3 years</td></tr>`;
+  } catch(e){ document.getElementById('aFlood').innerHTML=`<tr><td colspan="3">Error: ${e.message}</td></tr>`; }
+
+  // 4. Drought
+  try {
+    const dr = droughtAnalysis(r);
+    const rows=[
+      ['Mean annual 7-day low flow', dr.min7mean!=null?dr.min7mean.toFixed(2)+' m³/s':'—'],
+      ['7Q10 design low flow', dr.q7q10!=null?dr.q7q10.toFixed(2)+' m³/s':'—'],
+      ['Q80 drought threshold', dr.q80.toFixed(2)+' m³/s'],
+      ['Drought events (below Q80)', String(dr.droughtEvents)],
+      ['Max cumulative deficit', dr.maxDeficitMm3.toFixed(1)+' Mm³'],
+      ['Longest drought duration', dr.maxDurationDays+' days'],
+    ];
+    document.getElementById('aDrought').innerHTML = rows.map(([k,v])=>
+      `<tr><td>${k}</td><td style="color:var(--txt);text-align:right">${v}</td></tr>`).join('');
+  } catch(e){ document.getElementById('aDrought').innerHTML=`<tr><td colspan="2">Error: ${e.message}</td></tr>`; }
+
+  // 5. Trends (Mann-Kendall on annual mean / peak / min)
+  try {
+    const blocks = annualBlocks(r.flow);
+    if(blocks.length>=5){
+      const annMean=blocks.map(b=>mean(b));
+      const annMax=blocks.map(b=>Math.max(...b));
+      const annMin=blocks.map(b=>Math.min(...b));
+      const series=[['Annual mean flow',annMean],['Annual peak flow',annMax],['Annual minimum flow',annMin]];
+      document.getElementById('aTrend').innerHTML = series.map(([name,s])=>{
+        const mk=mannKendall(s);
+        if(!mk) return '';
+        const dir = mk.sen>0?'increasing':mk.sen<0?'decreasing':'none';
+        const col = mk.sig?(mk.sen>0?'var(--c2)':'var(--red)'):'var(--txt2)';
+        const trendTxt = mk.sig?`<b style="color:${col}">${dir} ✓</b>`:`${dir} (n.s.)`;
+        return `<tr><td>${name}</td><td style="text-align:right">${mk.tau.toFixed(3)}</td><td style="text-align:right">${mk.p.toFixed(3)}</td><td style="text-align:right">${mk.sen.toFixed(3)}</td><td>${trendTxt}</td></tr>`;
+      }).join('');
+    } else {
+      document.getElementById('aTrend').innerHTML=`<tr><td colspan="5" style="color:var(--txt3);text-align:center;padding:8px">Needs ≥5 years (current: ${blocks.length}) — increase simulation period</td></tr>`;
+    }
+  } catch(e){ document.getElementById('aTrend').innerHTML=`<tr><td colspan="5">Error: ${e.message}</td></tr>`; }
+
+  // 6. Monte Carlo uncertainty band (async-ish; do after paint)
+  document.getElementById('aUncStats').innerHTML='<span style="color:var(--amber)">Running Monte Carlo ensemble…</span>';
+  setTimeout(()=>{
+    try {
+      const unc = uncertaintyEnsemble(40);
+      if(unc){ drawUncertaintyBand(unc); 
+        document.getElementById('aUncStats').innerHTML =
+          `Ensemble of <b>${unc.nRuns}</b> runs (parameter ±8–35% + precip ±10%). Mean 95% band width ≈ <b>${(unc.meanRelWidth*100).toFixed(0)}%</b> of median flow. Wider bands indicate greater predictive uncertainty — narrow the parameter ranges via calibration to reduce it.`;
+      } else {
+        document.getElementById('aUncStats').innerHTML='<span style="color:var(--txt3)">Could not build ensemble — run a simulation first.</span>';
+      }
+    } catch(e){ document.getElementById('aUncStats').textContent='Error: '+e.message; }
+  }, 50);
+
+  toast('✅ Analysis complete');
+}
+
+// Draw the Monte Carlo 95% band + median + observed
+function drawUncertaintyBand(unc){
+  const c=document.getElementById('aUnc'); if(!c) return;
+  c.width=c.parentElement.clientWidth-26; c.height=210;
+  const ctx=c.getContext('2d'), W=c.width, H=c.height, pad=34;
+  ctx.clearRect(0,0,W,H);
+  const n=unc.med.length;
+  const start=WARMUP_DAYS, show=Math.min(n, start+730); // show up to 2 yrs post-warmup
+  const seg=(arr)=>arr.slice(start,show);
+  const lo=seg(unc.lo), hi=seg(unc.hi), med=seg(unc.med);
+  const obs=(S.obsFlow||[]).slice(start,show);
+  const maxY=Math.max(...hi, ...(obs.length?obs:[0]))*1.1 || 1;
+  const N=med.length;
+  const xt=i=>pad+i*(W-pad-8)/N, yt=v=>H-24-(v/maxY)*(H-40);
+  // axes
+  ctx.strokeStyle='var(--bord)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad,H-24); ctx.lineTo(W-6,H-24); ctx.moveTo(pad,10); ctx.lineTo(pad,H-24); ctx.stroke();
+  ctx.fillStyle='rgba(138,166,186,.85)'; ctx.font='9px IBM Plex Mono'; ctx.textAlign='right';
+  for(let g=0;g<=3;g++){ const v=maxY*g/3; const y=yt(v); ctx.fillText(v.toFixed(0),pad-3,y+3);
+    ctx.strokeStyle='rgba(58,93,114,.3)'; ctx.beginPath(); ctx.moveTo(pad,y); ctx.lineTo(W-6,y); ctx.stroke(); }
+  // 95% band
+  ctx.fillStyle='rgba(56,189,248,.20)'; ctx.beginPath();
+  ctx.moveTo(xt(0),yt(hi[0]));
+  for(let i=1;i<N;i++) ctx.lineTo(xt(i),yt(hi[i]));
+  for(let i=N-1;i>=0;i--) ctx.lineTo(xt(i),yt(lo[i]));
+  ctx.closePath(); ctx.fill();
+  // median
+  ctx.strokeStyle='#0ea5e9'; ctx.lineWidth=1.5; ctx.beginPath();
+  med.forEach((v,i)=> i?ctx.lineTo(xt(i),yt(v)):ctx.moveTo(xt(i),yt(v))); ctx.stroke();
+  // observed / reference
+  if(obs.length){ ctx.strokeStyle='rgba(251,191,36,.9)'; ctx.lineWidth=1; ctx.beginPath();
+    obs.forEach((v,i)=> i?ctx.lineTo(xt(i),yt(v)):ctx.moveTo(xt(i),yt(v))); ctx.stroke(); }
+  // legend
+  ctx.textAlign='left'; ctx.font='9px IBM Plex Mono';
+  ctx.fillStyle='rgba(56,189,248,.5)'; ctx.fillRect(W-150,12,10,6); ctx.fillStyle='rgba(138,166,186,.9)'; ctx.fillText('95% band',W-136,18);
+  ctx.fillStyle='#0ea5e9'; ctx.fillRect(W-80,12,10,3); ctx.fillStyle='rgba(138,166,186,.9)'; ctx.fillText('median',W-66,18);
+}
+
 // Composite objective for calibration (weighted multi-metric)
 function objective(m, kind) {
   switch(kind) {
@@ -2589,11 +2977,12 @@ function fallbackCopy(text, done) {
 function setTab(name,btn) {
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   if(btn) btn.classList.add('on');
-  ['Calib','Results','Export','About','Help'].forEach(n=>document.getElementById('pan'+n).classList.remove('open'));
+  ['Calib','Results','Analysis','Export','About','Help'].forEach(n=>document.getElementById('pan'+n).classList.remove('open'));
   if(name==='calib')   { document.getElementById('panCalib').classList.add('open');
     const sb=document.getElementById('sensBody');
     if(sb && !sb.querySelector('td[colspan]') && !sb.children.length) sb.innerHTML='<tr><td colspan="5" style="color:var(--txt3);text-align:center;padding:8px">Run calibration to compute parameter sensitivity</td></tr>'; }
   if(name==='results') { document.getElementById('panResults').classList.add('open'); setTimeout(drawResultsCharts,60); }
+  if(name==='analysis'){ document.getElementById('panAnalysis').classList.add('open'); }
   if(name==='export')  { document.getElementById('panExport').classList.add('open'); previewFile('rch'); }
   if(name==='about')   document.getElementById('panAbout').classList.add('open');
   if(name==='help')    document.getElementById('panHelp').classList.add('open');
