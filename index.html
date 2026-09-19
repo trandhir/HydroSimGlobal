@@ -662,7 +662,8 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
 
     <!-- layer controls -->
     <div class="map-ctrl">
-      <div class="mc-btn on"  id="btnLight" title="Light base map"  onclick="setTile('light')">🗺</div>
+      <div class="mc-btn on"  id="btnLight" title="Light base map (OpenStreetMap)"  onclick="setTile('light')">🗺</div>
+      <div class="mc-btn"     id="btnGray" title="Muted gray base map"  onclick="setTile('gray')">◻</div>
       <div class="mc-btn"     id="btnOSM"  title="Dark base map"   onclick="setTile('dark')">🌑</div>
       <div class="mc-btn"     id="btnSat"  title="Satellite"       onclick="setTile('sat')">🛰</div>
       <div class="mc-btn"     id="btnTopo" title="Terrain"         onclick="setTile('topo')">🏔</div>
@@ -753,16 +754,71 @@ const S = {                    // app state
 // ─────────────────────────────────────────────
 let MAP, pin, circle, tileLayer, circleOn = true;
 
-const TILES = {
-  light: { url:'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', sub:'abcd' },
-  dark:  { url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', sub:'abcd' },
-  sat:   { url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', sub:'' },
-  topo:  { url:'https://tile.opentopomap.org/{z}/{x}/{y}.png', sub:'' },
-};
+// Optional CARTO Basemaps API key. CARTO retired its keyless raster tiles in
+// Aug 2026 (they now return an "API KEY REQUIRED" watermark), so the default
+// base maps below use keyless providers (Esri / OpenStreetMap). If you want the
+// CARTO Voyager/Dark look back, get a free key at carto.com/basemaps/apikey
+// (no account needed, 5M tiles/month) and paste it here:
+const CARTO_KEY = '';   // e.g. 'ey...'; leave empty to use the keyless maps
+
+const TILES = (() => {
+  const cartoOK = CARTO_KEY && CARTO_KEY.length > 8;
+  return {
+    // Light reference basemap. Default is keyless OpenStreetMap standard (global, z19,
+    // actively maintained). With a CARTO key set, uses the softer CARTO Voyager style.
+    light: cartoOK
+      ? { url:`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, sub:'abcd',
+          attr:'© OpenStreetMap, © CARTO', maxNative:19 }
+      : { url:'https://tile.openstreetmap.org/{z}/{x}/{y}.png', sub:'',
+          attr:'© OpenStreetMap contributors', maxNative:19 },
+    // Muted light-gray basemap — keyless Esri Light Gray Canvas (raster max ~z16, upscaled above)
+    gray:  { url:'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', sub:'',
+             attr:'Tiles © Esri', maxNative:16 },
+    // Dark basemap — keyless Esri Dark Gray Canvas (falls back to CARTO dark if a key is set)
+    dark: cartoOK
+      ? { url:`https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, sub:'abcd',
+          attr:'© OpenStreetMap, © CARTO', maxNative:19 }
+      : { url:'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', sub:'',
+          attr:'Tiles © Esri', maxNative:16 },
+    sat:   { url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', sub:'', attr:'Imagery © Esri', maxNative:19 },
+    topo:  { url:'https://tile.opentopomap.org/{z}/{x}/{y}.png', sub:'', attr:'© OpenTopoMap (CC-BY-SA)', maxNative:17 },
+  };
+})();
+
+// Build a Leaflet tile layer with the options current tile services require.
+// OpenStreetMap (and others) now return a 403 "Access blocked" tile to requests
+// that arrive with no Referer header, so we set referrerPolicy so the browser
+// sends the site origin. We do NOT set crossOrigin, which would trigger the
+// anonymous, referer-less request that gets blocked.
+function makeTileLayer(cfg) {
+  const layer = L.tileLayer(cfg.url, {
+    subdomains: cfg.sub || 'abc',
+    maxZoom: 19,
+    maxNativeZoom: cfg.maxNative || 19,
+    referrerPolicy: 'strict-origin-when-cross-origin',
+    attribution: cfg.attr || '',
+  });
+  // If the chosen provider blocks or errors on many tiles (e.g. OSM's 403
+  // "Access blocked" when no Referer is sent, as happens from a file:// open),
+  // fall back once to Esri's keyless gray canvas, which needs no Referer.
+  if (cfg.url.indexOf('openstreetmap.org') !== -1) {
+    let errs = 0, switched = false;
+    layer.on('tileerror', () => {
+      if (switched) return;
+      if (++errs >= 3) {
+        switched = true;
+        MAP.removeLayer(layer);
+        tileLayer = makeTileLayer(TILES.gray).addTo(MAP);
+        setLoadStep && setLoadStep('Base map switched to Esri (OpenStreetMap tiles were blocked for this page)');
+      }
+    });
+  }
+  return layer;
+}
 
 function initMap() {
   MAP = L.map('map', { center:[20,0], zoom:2, zoomControl:true, attributionControl:false });
-  tileLayer = L.tileLayer(TILES.light.url,{ subdomains:'abcd', maxZoom:19 }).addTo(MAP);
+  tileLayer = makeTileLayer(TILES.light).addTo(MAP);
   MAP.on('click', e => {
     const {lat,lng} = e.latlng;
     document.getElementById('latI').value = lat.toFixed(5);
@@ -778,9 +834,9 @@ function initMap() {
 function setTile(t) {
   if (tileLayer) MAP.removeLayer(tileLayer);
   const cfg = TILES[t] || TILES.light;
-  tileLayer = L.tileLayer(cfg.url, { subdomains: cfg.sub||'abc', maxZoom:19 }).addTo(MAP);
+  tileLayer = makeTileLayer(cfg).addTo(MAP);
   document.querySelectorAll('.mc-btn').forEach(b=>b.classList.remove('on'));
-  const map = {light:'btnLight',dark:'btnOSM',sat:'btnSat',topo:'btnTopo'};
+  const map = {light:'btnLight',gray:'btnGray',dark:'btnOSM',sat:'btnSat',topo:'btnTopo'};
   if (map[t]) document.getElementById(map[t]).classList.add('on');
 }
 
