@@ -2092,7 +2092,17 @@ function drawBasinPolygon(geometry) {
 //  CALIBRATION (SUFI-2)
 // ─────────────────────────────────────────────
 async function startCalib() {
-  if(!S.climate||S.calibRunning) return;
+  if(S.calibRunning){ toast('⏳ Calibration already running…'); return; }
+  if(!S.climate || !S.wsData){
+    toast('⚠ Load a watershed first — pick a benchmark or enter coordinates, then Fetch Real Data.');
+    clog('e','Cannot calibrate: no watershed loaded. Use the Simulation tab to fetch data first.');
+    return;
+  }
+  if(!S.obsFlow || !S.obsFlow.length){
+    toast('⚠ No reference discharge available. Re-run Fetch Real Data.');
+    clog('e','Cannot calibrate: reference discharge (obsFlow) is missing.');
+    return;
+  }
   S.calibRunning=true;
   const meth=document.getElementById('c_meth').value;
   let objKind=document.getElementById('c_obj').value;
@@ -2146,6 +2156,7 @@ async function startCalib() {
   };
 
   const doIter=async()=>{
+   try {
     const batch=meth==='GLUE'?18:10;
     for(let b=0;b<batch&&iter<iters;b++){
       const trial={...base,coverFact:base.coverFact||0.005};
@@ -2170,6 +2181,8 @@ async function startCalib() {
       if(meth==='GLUE' && mCal.nse>0.3){
         behavioural.push({p:{...trial}, obj:score, flow:r.flow});
       }
+
+      iter++;
 
       if(score>bestObj){
         bestObj=score; bestP={...trial}; bestM=mCal;
@@ -2218,6 +2231,13 @@ async function startCalib() {
         toast(`✅ Done! Cal NSE=${bestM.nse.toFixed(3)} · Val NSE=${bestP._valNSE?.toFixed(3)}`);
       } catch(err) { clog('e','Log: '+err.message); }
     }
+   } catch(err) {
+     // Any runtime failure surfaces to the user instead of hanging silently.
+     S.calibRunning=false;
+     clog('e','Calibration error: '+(err&&err.message?err.message:err));
+     toast('⚠ Calibration failed: '+(err&&err.message?err.message:'unknown error'));
+     console.error('Calibration error', err);
+   }
   };
   doIter();
 }
