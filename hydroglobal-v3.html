@@ -894,6 +894,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
     <button class="tab"     onclick="setTab('calib',this)">Calibration</button>
     <button class="tab"     onclick="setTab('results',this)">Results</button>
     <button class="tab"     onclick="setTab('analysis',this)">Analysis</button>
+    <button class="tab"     onclick="setTab('figures',this)">Figures</button>
     <button class="tab"     onclick="setTab('export',this)">Export</button>
   </div>
   <div class="hdr-right">
@@ -1109,6 +1110,33 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
         <table class="ptbl"><thead><tr><th>Series</th><th>Kendall τ</th><th>p-value</th><th>Sen slope (m³/s/yr)</th><th>Trend</th></tr></thead><tbody id="aTrend"><tr><td colspan="5" style="color:var(--txt3);text-align:center;padding:8px">Run analysis (needs ≥5 years)</td></tr></tbody></table>
       </div>
 
+    </div>
+  </div>
+
+  <!-- publication figures and tables -->
+  <div class="panel" id="panFigures">
+    <div class="ph">
+      <div class="pt"><em>Figures</em> &amp; Tables</div>
+      <button class="btn btn-ghost" style="padding:6px 10px;width:auto" onclick="setTab('sim',document.querySelector('.tab'))">✕</button>
+    </div>
+    <div style="max-width:1100px;margin:0 auto">
+      <div class="card" style="margin-bottom:12px">
+        <h3>Publication-quality output from the current run</h3>
+        <div style="font-size:12px;color:var(--txt2);line-height:1.55;margin-bottom:10px">Figures are vector graphics on a white background with a colour-blind-safe palette. Download them as SVG (editable, any size) or PNG at 300 or 600 dpi. Tables download as CSV, one Excel workbook, or a Word document. Re-open this tab after a new run or calibration to refresh.</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <label style="font-size:11px;color:var(--txt2)">Figure width
+            <select id="figW" onchange="renderPubPanel()" style="margin-left:6px;background:var(--surf2);color:var(--txt);border:1px solid var(--bord);border-radius:4px;padding:5px 6px;font-size:11px">
+              <option value="double">Double column · 7.2 in (183 mm)</option><option value="medium">1.5 column · 5.5 in (140 mm)</option><option value="single">Single column · 3.5 in (89 mm)</option>
+            </select></label>
+          <button class="btn" style="width:auto;margin:0;background:var(--c1);color:#06202e" onclick="pubDownloadAll()">⬇ Everything (ZIP)</button>
+          <button class="btn btn-ghost" style="width:auto" onclick="pubDownloadReport()">⬇ Report (HTML → PDF)</button>
+          <button class="btn btn-ghost" style="width:auto" onclick="pubDownloadXlsx()">⬇ Tables (Excel)</button>
+          <button class="btn btn-ghost" style="width:auto" onclick="pubDownloadWord()">⬇ Tables (Word)</button>
+        </div>
+      </div>
+      <style>table.pubt{border-collapse:collapse;font:10pt Arial,Helvetica,sans-serif;color:#111;margin:0 0 6px;width:100%}table.pubt caption{caption-side:top;text-align:left;font-weight:bold;padding:0 0 5px;color:#111}table.pubt th{border-top:1.5pt solid #111;border-bottom:.75pt solid #111;padding:4px 8px;font-weight:bold;white-space:nowrap}table.pubt td{padding:3px 8px;border:none}table.pubt tbody tr:last-child td{border-bottom:1.5pt solid #111}table.pubt tr.tot td{border-top:.75pt solid #111;font-weight:bold}table.pubt tfoot td{font-size:8.5pt;color:#333;padding-top:5px;border:none!important;text-align:left;white-space:normal}#tblList table.pubt{width:auto;min-width:60%}</style>
+      <div id="figList"></div>
+      <div id="tblList"></div>
     </div>
   </div>
 
@@ -3042,7 +3070,7 @@ async function startCalib() {
   const finish = () => {
     S.calibRunning = false;
     const mVal = calcMetrics(best.flow, obs, splitIdx, endIdx), mCal = best.m;
-    S.calibBest = { ...best.p, _cal: mCal, _val: mVal, _valNSE: mVal.nse, _valKGE: mVal.kge, _method: meth, _objective: objKind, _runs: iter };
+    S.calibBest = { ...best.p, _cal: mCal, _val: mVal, _valNSE: mVal.nse, _valKGE: mVal.kge, _method: meth, _objective: objKind, _runs: iter, _start: start, _split: splitIdx, _end: endIdx };
     keys.forEach(k => { S.params[k] = best.p[k]; });
     updateSliders();
     document.getElementById('paramSrc').textContent = '(calibrated)';
@@ -3503,7 +3531,7 @@ function crc32(u8) { let c, crc = ~0; for (let i = 0; i < u8.length; i++) { c = 
 function makeZip(files) {
   const enc = new TextEncoder(), parts = [], central = []; let off = 0;
   for (const f of files) {
-    const name = enc.encode(f.name), data = enc.encode(f.text), crc = crc32(data);
+    const name = enc.encode(f.name), data = f.data || enc.encode(f.text), crc = crc32(data);
     const h = new DataView(new ArrayBuffer(30)); h.setUint32(0,0x04034b50,true); h.setUint16(4,20,true); h.setUint16(6,0x0800,true); h.setUint16(8,0,true);
     h.setUint32(14,crc,true); h.setUint32(18,data.length,true); h.setUint32(22,data.length,true); h.setUint16(26,name.length,true);
     parts.push(new Uint8Array(h.buffer), name, data);
@@ -3805,13 +3833,14 @@ function fallbackCopy(text, done) {
 function setTab(name,btn) {
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   if(btn) btn.classList.add('on');
-  ['Calib','Results','Analysis','Export','About','Help'].forEach(n=>document.getElementById('pan'+n).classList.remove('open'));
+  ['Calib','Results','Analysis','Figures','Export','About','Help'].forEach(n=>document.getElementById('pan'+n).classList.remove('open'));
   if(name==='calib')   { document.getElementById('panCalib').classList.add('open');
     const sb=document.getElementById('sensBody');
     if(sb && !sb.querySelector('td[colspan]') && !sb.children.length) sb.innerHTML='<tr><td colspan="6" style="color:var(--txt3);text-align:center;padding:8px">Run calibration to compute parameter sensitivity</td></tr>'; }
   if(name==='results') { document.getElementById('panResults').classList.add('open'); setTimeout(drawResultsCharts,60); }
   if(name==='analysis'){ document.getElementById('panAnalysis').classList.add('open'); }
   if(name==='export')  { document.getElementById('panExport').classList.add('open'); previewFile(S._exType||'daily'); }
+  if(name==='figures'){ document.getElementById('panFigures').classList.add('open'); renderPubPanel(); }
   if(name==='about')   document.getElementById('panAbout').classList.add('open');
   if(name==='help')    document.getElementById('panHelp').classList.add('open');
 }
@@ -3855,6 +3884,395 @@ window.addEventListener('load', ()=>{
   toast('🌍 Click the map on a river, search for a place, or pick a benchmark basin to begin.');
 });
 window.addEventListener('resize', ()=>{ if(MAP) MAP.invalidateSize(); });
+
+
+// ═════════════════════════════════════════════════════════════
+//  PUBLICATION FIGURES AND TABLES
+//  Vector figures are built as SVG (white background, colour-blind-safe
+//  Okabe–Ito palette, labelled axes with units) and rasterised to PNG at
+//  300 or 600 dpi on request. Tables export as CSV, Excel (.xlsx) and Word.
+// ═════════════════════════════════════════════════════════════
+const PUB = {
+  font: 'Arial, Helvetica, sans-serif',
+  c: { obs:'#111111', sim:'#0072B2', band:'#0072B2', P:'#56B4E9', ET:'#E69F00', PET:'#999999', surf:'#D55E00', lat:'#CC79A7', base:'#009E73', grid:'#e6e6e6', axis:'#222222', val:'#D55E00' },
+  widths: { single: 3.5, medium: 5.5, double: 7.2 },
+};
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const xmlEsc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const n1 = v => (Math.round(v * 10) / 10).toFixed(1);
+
+function niceTicks(lo, hi, n) {
+  if (!(hi > lo)) hi = lo + 1;
+  const raw = (hi - lo) / Math.max(1, n), mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+  const step = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag, out = [];
+  for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + step * 1e-6; v += step) out.push(Math.abs(v) < step * 1e-9 ? 0 : +v.toPrecision(12));
+  return out;
+}
+function niceMax(mx, n) { const t = niceTicks(0, mx > 0 ? mx : 1, n || 5), step = t.length > 1 ? t[1] - t[0] : (mx || 1); return Math.ceil((mx > 0 ? mx : 1) * 1.03 / step) * step; }
+const fmtTick = v => { const a = Math.abs(v); if (a === 0) return '0'; if (a >= 10000) return v.toLocaleString('en-US'); if (a >= 100) return v.toFixed(0); if (a >= 1) return String(+v.toFixed(2)); return String(+v.toPrecision(2)); };
+
+class SvgFig {
+  constructor(wIn, hIn) { this.wIn = wIn; this.hIn = hIn; this.w = wIn * 96; this.h = hIn * 96; this.el = []; this.fs = wIn < 4.5 ? 9.5 : 10.5; }
+  add(s) { this.el.push(s); return this; }
+  text(x, y, str, o = {}) {
+    const a = o.anchor || 'start', sz = o.size || this.fs;
+    this.el.push(`<text x="${n1(x)}" y="${n1(y)}" text-anchor="${a}" font-size="${sz}"${o.weight ? ` font-weight="${o.weight}"` : ''}${o.italic ? ' font-style="italic"' : ''} fill="${o.fill || PUB.c.axis}"${o.rot ? ` transform="rotate(${o.rot} ${n1(x)} ${n1(y)})"` : ''}>${xmlEsc(str)}</text>`);
+  }
+  line(x1, y1, x2, y2, o = {}) { this.el.push(`<line x1="${n1(x1)}" y1="${n1(y1)}" x2="${n1(x2)}" y2="${n1(y2)}" stroke="${o.stroke || PUB.c.axis}" stroke-width="${o.w || 0.8}"${o.dash ? ` stroke-dasharray="${o.dash}"` : ''}/>`); }
+  // Axes frame. Returns scale functions sx(v), sy(v).
+  panel(p) {
+    const { x, y, w, h } = p, [x0, x1] = p.xDom; let [y0, y1] = p.yDom;
+    const lx = v => p.xLog ? Math.log10(Math.max(v, x0)) : v, ly = v => p.yLog ? Math.log10(Math.max(v, y0)) : v;
+    const sx = v => x + (lx(v) - lx(x0)) / (lx(x1) - lx(x0)) * w;
+    const sy = v => p.yInvert ? y + (ly(v) - ly(y0)) / (ly(y1) - ly(y0)) * h : y + h - (ly(v) - ly(y0)) / (ly(y1) - ly(y0)) * h;
+    const logTicks = (a, b) => { const out = []; for (let e = Math.floor(Math.log10(a)); e <= Math.ceil(Math.log10(b)); e++) { const v = Math.pow(10, e); if (v >= a * 0.999 && v <= b * 1.001) out.push(v); } return out; };
+    const logMinor = (a, b) => { const out = []; for (let e = Math.floor(Math.log10(a)) - 1; e <= Math.ceil(Math.log10(b)); e++) for (let k = 2; k <= 9; k++) { const v = k * Math.pow(10, e); if (v > a && v < b) out.push(v); } return out; };
+    const yT = p.yTicks || (p.yLog ? logTicks(y0, y1) : niceTicks(y0, y1, p.yN || 5).filter(v => v >= y0 - 1e-9 && v <= y1 + 1e-9));
+    const xT = p.xTicks || (p.xLog ? logTicks(x0, x1) : niceTicks(x0, x1, p.xN || 6).filter(v => v >= x0 - 1e-9 && v <= x1 + 1e-9));
+    if (p.grid !== false) yT.forEach(v => this.line(x, sy(v), x + w, sy(v), { stroke: PUB.c.grid, w: 0.6 }));
+    if (p.xGrid) xT.forEach(t => { const v = typeof t === 'object' ? t.v : t; this.line(sx(v), y, sx(v), y + h, { stroke: PUB.c.grid, w: 0.6 }); });
+    this.el.push(`<rect x="${n1(x)}" y="${n1(y)}" width="${n1(w)}" height="${n1(h)}" fill="none" stroke="${PUB.c.axis}" stroke-width="0.9"/>`);
+    yT.forEach(v => { this.line(x - 4, sy(v), x, sy(v)); this.text(x - 6, sy(v) + this.fs * 0.35, (p.yFmt || fmtTick)(v), { anchor: 'end' }); });
+    if (p.yLog) logMinor(y0, y1).forEach(v => this.line(x - 2.2, sy(v), x, sy(v), { w: 0.5 }));
+    if (p.xLog) logMinor(x0, x1).forEach(v => this.line(sx(v), y + h, sx(v), y + h + 2.2, { w: 0.5 }));
+    if (p.xAxis !== false) xT.forEach(t => { const v = typeof t === 'object' ? t.v : t, lab = typeof t === 'object' ? t.lab : (p.xFmt || fmtTick)(v);
+      this.line(sx(v), y + h, sx(v), y + h + 4); if (lab !== '') this.text(sx(v) + (p.xLabDx || 0), y + h + 5 + this.fs, lab, { anchor: 'middle' }); });
+    if (p.yLabel) this.text(x - (p.yLabOff || 40), y + h / 2, p.yLabel, { anchor: 'middle', rot: -90, size: this.fs + 1 });
+    if (p.xLabel) this.text(x + w / 2, y + h + 20 + this.fs * 1.2, p.xLabel, { anchor: 'middle', size: this.fs + 1 });
+    if (p.tag) this.text(x + 6, y + 13, p.tag, { weight: 'bold', size: this.fs + 1 });
+    return { sx, sy, x, y, w, h };
+  }
+  path(pts, o = {}) {            // pts: array of [px,py] or null (gap)
+    let d = '', pen = false;
+    for (const q of pts) { if (!q || !isFinite(q[0]) || !isFinite(q[1])) { pen = false; continue; } d += (pen ? 'L' : 'M') + n1(q[0]) + ' ' + n1(q[1]); pen = true; }
+    if (d) this.el.push(`<path d="${d}" fill="${o.fill || 'none'}" stroke="${o.stroke || PUB.c.sim}" stroke-width="${o.w || 1.1}" stroke-linejoin="round"${o.dash ? ` stroke-dasharray="${o.dash}"` : ''}${o.op != null ? ` opacity="${o.op}"` : ''}/>`);
+  }
+  rect(x, y, w, h, fill, o = {}) { if (w > 0 && h > 0) this.el.push(`<rect x="${n1(x)}" y="${n1(y)}" width="${n1(w)}" height="${n1(h)}" fill="${fill}"${o.op != null ? ` opacity="${o.op}"` : ''}${o.stroke ? ` stroke="${o.stroke}" stroke-width="0.5"` : ''}/>`); }
+  legend(x, y, items) {         // items: {lab, color, kind:'line'|'box'|'band'|'dot'|'dia'|'dash'}; wraps upward from baseline y
+    const fs = this.fs, wOf = it => 18 + it.lab.length * fs * 0.56 + 14, rows = [[]]; let cx = x;
+    for (const it of items) { if (cx + wOf(it) - 14 > this.w - 6 && rows[rows.length - 1].length) { rows.push([]); cx = x; } rows[rows.length - 1].push(it); cx += wOf(it); }
+    rows.forEach((row, ri) => { let px = x; const cy = y - (rows.length - 1 - ri) * (fs + 6);
+      for (const it of row) {
+        if (it.kind === 'box') this.rect(px, cy - 7, 14, 8, it.color, { op: it.op });
+        else if (it.kind === 'band') this.rect(px, cy - 8, 14, 10, it.color, { op: 0.25 });
+        else if (it.kind === 'dot') this.el.push(`<circle cx="${n1(px + 7)}" cy="${n1(cy - 3)}" r="2.6" fill="${it.fill || 'none'}" stroke="${it.color}" stroke-width="1"/>`);
+        else if (it.kind === 'dia') this.el.push(`<path d="M${n1(px + 7)} ${n1(cy - 6.6)}l3.6 3.6l-3.6 3.6l-3.6 -3.6z" fill="#fff" stroke="${it.color}" stroke-width="1"/>`);
+        else this.line(px, cy - 3, px + 14, cy - 3, { stroke: it.color, w: it.w || 1.6, dash: it.kind === 'dash' ? '4 2.5' : null });
+        this.text(px + 18, cy, it.lab); px += wOf(it);
+      } });
+  }
+  toString() {
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${this.wIn}in" height="${this.hIn}in" viewBox="0 0 ${n1(this.w)} ${n1(this.h)}" font-family="${PUB.font}">` +
+      `<rect width="100%" height="100%" fill="#ffffff"/>${this.el.join('')}</svg>`;
+  }
+}
+
+// ── shared data preparation ──────────────────────────────────
+function pubData() {
+  const r = S.simResult; if (!r) return null;
+  const n = r.flow.length, obsRaw = S.obsFlow || [], real = S.obsMeta && S.obsMeta.kind === 'observed';
+  const obs = new Array(n); let nObs = 0;
+  for (let i = 0; i < n; i++) { const v = obsRaw[i]; obs[i] = (v != null && isFinite(v)) ? +v : null; if (obs[i] != null) nObs++; }
+  const area = r.areaKm2 || S.wsData.areaKm2, toMm = q => q * 86.4 / area;
+  const yr = new Int16Array(n), mo = new Int8Array(n);
+  for (let i = 0; i < n; i++) { yr[i] = +r.dates[i].slice(0, 4); mo[i] = +r.dates[i].slice(5, 7) - 1; }
+  const years = []; for (let i = 0; i < n; i++) if (!years.length || years[years.length - 1] !== yr[i]) years.push(yr[i]);
+  const refLab = !nObs ? null : real ? 'Observed' : 'Budyko reference (synthetic)';
+  const cb = S.calibBest, split = cb && cb._split != null ? { start: cb._start, split: cb._split, end: cb._end } : null;
+  return { r, n, obs, nObs, real, area, toMm, yr, mo, years, refLab, cb, split, name: (S.name && !/^watershed$/i.test(S.name)) ? S.name : `the basin above ${(+S.lat).toFixed(3)}°, ${(+S.lon).toFixed(3)}°` };
+}
+function monthlyClim(D) {
+  const z = () => new Array(12).fill(0), P = z(), ET = z(), PET = z(), Q = z(), Qo = z(), nd = z(), no = z(), sf = z(), lt = z(), bf = z(), T = z();
+  const { r, n, mo, obs, toMm } = D, nYears = n / 365.25;
+  for (let i = 0; i < n; i++) { const m = mo[i]; P[m] += r.P[i]; ET[m] += r.et[i]; PET[m] += r.PET[i] || 0; Q[m] += r.flow_mm ? r.flow_mm[i] : toMm(r.flow[i]); sf[m] += toMm(r.sfQ[i]); lt[m] += toMm(r.ltQ[i]); bf[m] += toMm(r.bfQ[i]);   /* engine returns components in m3/s */
+    T[m] += (r.Tx[i] + r.Tn[i]) / 2; nd[m]++; if (obs[i] != null) { Qo[m] += toMm(obs[i]); no[m]++; } }
+  const per = (a, m) => a[m] / nYears;                      // mm per calendar month, long-term mean
+  return MONTHS.map((lab, m) => ({ lab, P: per(P, m), ET: per(ET, m), PET: per(PET, m), Q: per(Q, m), sf: per(sf, m), lt: per(lt, m), bf: per(bf, m), T: T[m] / Math.max(1, nd[m]),
+    Qo: no[m] >= nd[m] * 0.8 ? Qo[m] / no[m] * (nd[m] / nYears) : null }));
+}
+function annualSeries(D) {
+  const { r, n, yr, obs, toMm } = D, by = {};
+  for (let i = 0; i < n; i++) { const y = yr[i], a = by[y] || (by[y] = { y, P: 0, ET: 0, PET: 0, Q: 0, Qo: 0, no: 0, nd: 0, peak: 0, sumQ: 0 });
+    a.P += r.P[i]; a.ET += r.et[i]; a.PET += r.PET[i] || 0; a.Q += r.flow_mm ? r.flow_mm[i] : toMm(r.flow[i]); a.nd++; a.sumQ += r.flow[i]; if (r.flow[i] > a.peak) a.peak = r.flow[i];
+    if (obs[i] != null) { a.Qo += toMm(obs[i]); a.no++; } }
+  return Object.values(by).filter(a => a.nd >= 360).map(a => ({ ...a, meanQ: a.sumQ / a.nd, Qo: a.no >= a.nd * 0.9 ? a.Qo * a.nd / a.no : null }));
+}
+function metricsLine(m) { return `KGE ${m.kge.toFixed(2)}, NSE ${m.nse.toFixed(2)}, PBIAS ${m.pbias.toFixed(1)}%`; }
+function refNote(D) { return D.nObs ? (D.real ? `Observed discharge: ${S.obsMeta.source}.` : 'No gauge record was available: the reference series is a synthetic Budyko–Fu estimate, not an observation, and the scores are not a validation.') : 'No observed discharge was loaded.'; }
+function srcNote() { const f = S.dataFlags && S.dataFlags.failed; return (f && f.length) ? ` Inputs estimated because the service was unreachable: ${f.join(', ')}.` : ''; }
+
+// ── figures ──────────────────────────────────────────────────
+const PUB_FIGS = [
+  { id: 'hydrograph', file: 'Fig1_hydrograph', title: 'Daily hydrograph and precipitation', aspect: 0.52, build(D, W) {
+      const { r, n, obs } = D, F = new SvgFig(W, Math.max(2.6, W * this.aspect)), L = 52, R = 12, top = 10, pw = F.w - L - R, hP = F.h * 0.2, gap = 16, hQ = F.h - top - hP - gap - 44;
+      const tick = [], step = D.years.length > 24 ? 5 : D.years.length > 12 ? 2 : 1; let i0 = 0;
+      for (let i = 0; i < n; i++) if (i === 0 || D.yr[i] !== D.yr[i - 1]) { if (D.mo[i] === 0 && (D.yr[i] % step === 0)) tick.push({ v: i, lab: W < 4.5 && D.years.length > 6 ? "'" + String(D.yr[i]).slice(2) : String(D.yr[i]) }); }
+      const pmax = niceTicks(0, Math.max(1, ...r.P), 2).pop() || 1;
+      const a = F.panel({ x: L, y: top, w: pw, h: hP, xDom: [0, n - 1], yDom: [0, niceMax(Math.max(...r.P), 2)], yInvert: true, xTicks: tick, xAxis: false, yN: 2, yLabel: 'P (mm d⁻¹)', yLabOff: 38, grid: false });
+      let d = ''; for (let i = 0; i < n; i++) if (r.P[i] > 0.05) d += `M${n1(a.sx(i))} ${n1(a.y)}V${n1(a.sy(r.P[i]))}`;
+      F.add(`<path d="${d}" stroke="${PUB.c.P}" stroke-width="${Math.max(0.35, Math.min(1.2, pw / n))}" fill="none"/>`);
+      let qmax = 0; for (let i = 0; i < n; i++) { qmax = Math.max(qmax, r.flow[i], obs[i] || 0, S.ppu ? S.ppu.hi[i] || 0 : 0); }
+      const b = F.panel({ x: L, y: top + hP + gap, w: pw, h: hQ, xDom: [0, n - 1], yDom: [0, niceMax(qmax)], xTicks: tick, yLabel: 'Discharge (m³ s⁻¹)', yLabOff: 40 });
+      F.add(`<clipPath id="cq"><rect x="${n1(b.x)}" y="${n1(b.y)}" width="${n1(b.w)}" height="${n1(b.h)}"/></clipPath><g clip-path="url(#cq)">`);
+      const leg = [];
+      if (S.ppu && S.ppu.lo.length === n) { const up = [], dn = []; for (let i = 0; i < n; i++) { up.push([b.sx(i), b.sy(S.ppu.hi[i])]); dn.push([b.sx(i), b.sy(S.ppu.lo[i])]); }
+        F.path(up.concat(dn.reverse()), { fill: PUB.c.band, stroke: 'none', op: 0.25 }); leg.push({ lab: '95% prediction band', color: PUB.c.band, kind: 'band' }); }
+      if (D.nObs) { F.path(obs.map((v, i) => v == null ? null : [b.sx(i), b.sy(v)]), { stroke: PUB.c.obs, w: 0.9 }); leg.unshift({ lab: D.refLab, color: PUB.c.obs }); }
+      F.path(Array.from(r.flow, (v, i) => [b.sx(i), b.sy(v)]), { stroke: PUB.c.sim, w: 1.0 });
+      F.add('</g>'); leg.splice(D.nObs ? 1 : 0, 0, { lab: 'Simulated', color: PUB.c.sim });
+      if (D.split) { const xs = b.sx(D.split.split); F.line(xs, b.y, xs, b.y + b.h, { stroke: PUB.c.val, dash: '4 3', w: 1 });
+        const hx = b.x + b.w - xs > 60, lb = W < 4.5 ? ['cal.', 'val.'] : ['calibration', 'validation'];
+        F.text(xs - 4, a.y + a.h - 5, lb[0], { anchor: 'end', size: F.fs - 1, fill: PUB.c.val }); if (hx) F.text(xs + 4, a.y + a.h - 5, lb[1], { size: F.fs - 1, fill: PUB.c.val });
+        F.line(xs, a.y, xs, a.y + a.h, { stroke: PUB.c.val, dash: '4 3', w: 1 }); }
+      F.legend(L, F.h - 6, leg);
+      const m = D.nObs >= 30 ? calcMetrics(r.flow, obs) : null;
+      return { svg: F.toString(), hIn: F.hIn, caption: `Daily simulated${D.nObs ? ' and ' + D.refLab.toLowerCase() : ''} discharge for ${D.name} (${D.area.toLocaleString('en-US', { maximumFractionDigits: 0 })} km²), ${r.dates[0].slice(0, 4)}–${r.dates[n - 1].slice(0, 4)}, with basin-mean precipitation (top).` +
+        (S.ppu ? ` Shading is the 95% prediction band from ${S.ppu.n} behavioural parameter sets (parameter uncertainty only).` : '') +
+        (m ? ` Full period after a ${WARMUP_DAYS}-day warm-up: ${metricsLine(m)}.` : '') + (D.split && D.cb._val ? ` Validation period: ${metricsLine(D.cb._val)}.` : '') + ' ' + refNote(D) + srcNote() };
+    } },
+  { id: 'fdc', file: 'Fig2_flow_duration', title: 'Flow duration curve', aspect: 0.72, build(D, W) {
+      const { r, n, obs } = D, F = new SvgFig(W, Math.max(2.6, W * this.aspect)), L = 56, R = 14, top = 10, pw = F.w - L - R, ph = F.h - top - 62;
+      const s = [], o = []; for (let i = WARMUP_DAYS; i < n; i++) { if (D.nObs) { if (obs[i] != null) { o.push(obs[i]); s.push(r.flow[i]); } } else s.push(r.flow[i]); }
+      s.sort((a, b) => b - a); o.sort((a, b) => b - a);
+      const all = s.concat(o).filter(v => v > 0), hi = Math.max(...all), lo = Math.max(Math.min(...all), hi * 1e-5);
+      const y0 = Math.pow(10, Math.floor(Math.log10(lo))), y1 = Math.pow(10, Math.ceil(Math.log10(hi)));
+      const a = F.panel({ x: L, y: top, w: pw, h: ph, xDom: [0, 100], yDom: [y0, y1], yLog: true, xTicks: [0, 20, 40, 60, 80, 100], xGrid: true, yLabel: 'Discharge (m³ s⁻¹)', yLabOff: 44, xLabel: 'Exceedance probability (%)' });
+      const curve = arr => arr.map((v, i) => [a.sx(100 * (i + 0.5) / arr.length), a.sy(Math.max(v, y0))]);
+      F.add(`<clipPath id="cf"><rect x="${n1(a.x)}" y="${n1(a.y)}" width="${n1(a.w)}" height="${n1(a.h)}"/></clipPath><g clip-path="url(#cf)">`);
+      if (o.length) F.path(curve(o), { stroke: PUB.c.obs, w: 1.3 }); F.path(curve(s), { stroke: PUB.c.sim, w: 1.3 }); F.add('</g>');
+      F.legend(L, F.h - 6, (o.length ? [{ lab: D.refLab, color: PUB.c.obs }] : []).concat([{ lab: 'Simulated', color: PUB.c.sim }]));
+      return { svg: F.toString(), hIn: F.hIn, caption: `Flow duration curves of daily discharge for ${D.name}${o.length ? ', computed on days with both series' : ''} (n = ${s.length.toLocaleString('en-US')} days; ${WARMUP_DAYS}-day warm-up excluded). Logarithmic vertical axis. ` + refNote(D) };
+    } },
+  { id: 'regime', file: 'Fig3_monthly_regime', title: 'Mean monthly water balance', aspect: 0.62, build(D, W) {
+      const M = monthlyClim(D), F = new SvgFig(W, Math.max(2.6, W * this.aspect)), L = 50, R = 12, top = 10, pw = F.w - L - R, ph = F.h - top - 58;
+      const mx = Math.max(...M.map(m => Math.max(m.P, m.ET, m.Q, m.Qo || 0, m.PET)));
+      const a = F.panel({ x: L, y: top, w: pw, h: ph, xDom: [0, 12], yDom: [0, niceMax(mx)], xTicks: M.map((m, i) => ({ v: i + 0.5, lab: W < 4.5 ? m.lab[0] : m.lab })), yLabel: 'Water flux (mm month⁻¹)', yLabOff: 38 });
+      const bw = pw / 12 * 0.62; M.forEach((m, i) => F.rect(a.sx(i + 0.5) - bw / 2, a.sy(m.P), bw, a.y + a.h - a.sy(m.P), PUB.c.P, { op: 0.75 }));
+      const ln = (k, c, o) => F.path(M.map((m, i) => m[k] == null ? null : [a.sx(i + 0.5), a.sy(m[k])]), Object.assign({ stroke: c, w: 1.6 }, o || {}));
+      const dots = (k, c, fill) => M.forEach((m, i) => { if (m[k] != null) F.add(`<circle cx="${n1(a.sx(i + 0.5))}" cy="${n1(a.sy(m[k]))}" r="2.4" fill="${fill || c}" stroke="${c}" stroke-width="1"/>`); });
+      ln('PET', PUB.c.PET, { dash: '4 2.5', w: 1.2 }); ln('ET', PUB.c.ET); dots('ET', PUB.c.ET); ln('Q', PUB.c.sim); dots('Q', PUB.c.sim);
+      const hasO = M.some(m => m.Qo != null); if (hasO) { ln('Qo', PUB.c.obs, { w: 1.2 }); dots('Qo', PUB.c.obs, '#fff'); }
+      F.legend(L, F.h - 6, [{ lab: 'Precipitation', color: PUB.c.P, kind: 'box', op: 0.75 }, { lab: 'Reference ET', color: PUB.c.PET, kind: 'dash' }, { lab: 'Actual ET', color: PUB.c.ET }, { lab: 'Simulated runoff', color: PUB.c.sim }].concat(hasO ? [{ lab: D.real ? 'Observed runoff' : 'Reference runoff', color: PUB.c.obs }] : []));
+      return { svg: F.toString(), hIn: F.hIn, caption: `Mean monthly precipitation, reference and actual evapotranspiration, and runoff for ${D.name}, ${D.r.dates[0].slice(0, 4)}–${D.r.dates[D.n - 1].slice(0, 4)} (${S.climate.srcShort || 'synthetic'} forcing). Runoff is discharge divided by drainage area. ` + refNote(D) + srcNote() };
+    } },
+  { id: 'annual', file: 'Fig4_annual_water_balance', title: 'Annual water balance', aspect: 0.6, build(D, W) {
+      const A = annualSeries(D); if (!A.length) return null;
+      const F = new SvgFig(W, Math.max(2.6, W * this.aspect)), L = 52, R = 12, top = 10, pw = F.w - L - R, ph = F.h - top - 58;
+      const mx = Math.max(...A.map(a => Math.max(a.P, a.ET, a.Q, a.Qo || 0))), step = A.length > 20 ? 5 : A.length > 10 ? 2 : 1;
+      const a = F.panel({ x: L, y: top, w: pw, h: ph, xDom: [0, A.length], yDom: [0, niceMax(mx)], xTicks: A.map((v, i) => ({ v: i + 0.5, lab: v.y % step === 0 ? (W < 4.5 && A.length > 6 ? "'" + String(v.y).slice(2) : String(v.y)) : '' })), yLabel: 'Annual depth (mm)', yLabOff: 40 });
+      const g = pw / A.length, bw = g * 0.26, base = a.y + a.h;
+      A.forEach((v, i) => { const c = a.sx(i + 0.5); F.rect(c - bw * 1.5, a.sy(v.P), bw, base - a.sy(v.P), PUB.c.P); F.rect(c - bw * 0.5, a.sy(v.ET), bw, base - a.sy(v.ET), PUB.c.ET); F.rect(c + bw * 0.5, a.sy(v.Q), bw, base - a.sy(v.Q), PUB.c.sim);
+        if (v.Qo != null) F.add(`<path d="M${n1(c + bw)} ${n1(a.sy(v.Qo) - 3.6)}l3.6 3.6l-3.6 3.6l-3.6 -3.6z" fill="#fff" stroke="${PUB.c.obs}" stroke-width="1"/>`); });
+      const hasO = A.some(v => v.Qo != null);
+      F.legend(L, F.h - 6, [{ lab: 'Precipitation', color: PUB.c.P, kind: 'box' }, { lab: 'Actual ET', color: PUB.c.ET, kind: 'box' }, { lab: 'Simulated runoff', color: PUB.c.sim, kind: 'box' }].concat(hasO ? [{ lab: D.real ? 'Observed runoff' : 'Reference runoff', color: PUB.c.obs, kind: 'dia' }] : []));
+      return { svg: F.toString(), hIn: F.hIn, caption: `Annual precipitation, actual evapotranspiration and runoff for ${D.name} by calendar year.` + (hasO ? ` Markers show ${D.real ? 'observed' : 'reference'} runoff for years with at least 90% of days available.` : '') + ' The first year includes model warm-up. ' + refNote(D) + srcNote() };
+    } },
+  { id: 'scatter', file: 'Fig5_observed_vs_simulated', title: 'Observed versus simulated discharge', aspect: 1, needObs: true, build(D, W) {
+      const { r, n, obs } = D, Wd = Math.min(W, 5.5), F = new SvgFig(Wd, Wd * 0.96), L = 58, R = 16, top = 12, pw = F.w - L - R, ph = F.h - top - 48, o = [], s = [];
+      for (let i = WARMUP_DAYS; i < n; i++) if (obs[i] != null && obs[i] > 0 && r.flow[i] > 0) { o.push(obs[i]); s.push(r.flow[i]); }
+      if (o.length < 10) return null;
+      const hi = Math.max(...o, ...s), lo = Math.max(Math.min(...o, ...s), hi * 1e-5), d0 = Math.pow(10, Math.floor(Math.log10(lo))), d1 = Math.pow(10, Math.ceil(Math.log10(hi)));
+      const a = F.panel({ x: L, y: top, w: pw, h: ph, xDom: [d0, d1], yDom: [d0, d1], xLog: true, yLog: true, xGrid: true, xLabel: `${D.real ? 'Observed' : 'Reference'} discharge (m³ s⁻¹)`, yLabel: 'Simulated discharge (m³ s⁻¹)', yLabOff: 46 });
+      const stride = Math.max(1, Math.floor(o.length / 6000)); let pts = '';
+      for (let i = 0; i < o.length; i += stride) pts += `<circle cx="${n1(a.sx(o[i]))}" cy="${n1(a.sy(s[i]))}" r="1.3"/>`;
+      F.add(`<g fill="${PUB.c.sim}" opacity="0.35">${pts}</g>`); F.line(a.sx(d0), a.sy(d0), a.sx(d1), a.sy(d1), { dash: '5 3', w: 1 });
+      const m = calcMetrics(r.flow, obs);
+      [`n = ${m.n.toLocaleString('en-US')}`, `KGE = ${m.kge.toFixed(2)}`, `NSE = ${m.nse.toFixed(2)}`, `r = ${m.r.toFixed(2)}`, `PBIAS = ${m.pbias.toFixed(1)}%`].forEach((t, i) => F.text(a.x + 8, a.y + 15 + i * (F.fs + 3.5), t));
+      F.text(a.x + a.w - 8, a.y + 32, '1:1', { anchor: 'end', size: F.fs - 0.5 });
+      return { svg: F.toString(), wIn: Wd, hIn: F.hIn, caption: `Simulated against ${D.real ? 'observed' : 'reference'} daily discharge for ${D.name} on logarithmic axes; the dashed line is 1:1. Statistics use untransformed flows after a ${WARMUP_DAYS}-day warm-up.` + (stride > 1 ? ` Every ${stride}th day is plotted.` : '') + ' ' + refNote(D) };
+    } },
+  { id: 'components', file: 'Fig6_runoff_components', title: 'Runoff generation by pathway', aspect: 0.6, build(D, W) {
+      const M = monthlyClim(D), F = new SvgFig(W, Math.max(2.6, W * this.aspect)), L = 50, R = 12, top = 10, pw = F.w - L - R, ph = F.h - top - 58;
+      const mx = Math.max(...M.map(m => m.sf + m.lt + m.bf));
+      const a = F.panel({ x: L, y: top, w: pw, h: ph, xDom: [0, 12], yDom: [0, niceMax(mx)], xTicks: M.map((m, i) => ({ v: i + 0.5, lab: W < 4.5 ? m.lab[0] : m.lab })), yLabel: 'Runoff generation (mm month⁻¹)', yLabOff: 38 });
+      const bw = pw / 12 * 0.62; M.forEach((m, i) => { let acc = 0; [['bf', PUB.c.base], ['lt', PUB.c.lat], ['sf', PUB.c.surf]].forEach(([k, c]) => { const y1 = a.sy(acc + m[k]); F.rect(a.sx(i + 0.5) - bw / 2, y1, bw, a.sy(acc) - y1, c); acc += m[k]; }); });
+      F.legend(L, F.h - 6, [{ lab: 'Baseflow', color: PUB.c.base, kind: 'box' }, { lab: 'Lateral flow', color: PUB.c.lat, kind: 'box' }, { lab: 'Surface runoff', color: PUB.c.surf, kind: 'box' }]);
+      const mb = D.r.massBalance, tot = (mb.surfQ_mm + mb.latQ_mm + mb.baseQ_mm) || 1;
+      return { svg: F.toString(), hIn: F.hIn, caption: `Simulated mean monthly runoff generation for ${D.name} by pathway, before channel routing: baseflow ${(100 * mb.baseQ_mm / tot).toFixed(0)}%, lateral flow ${(100 * mb.latQ_mm / tot).toFixed(0)}%, surface runoff ${(100 * mb.surfQ_mm / tot).toFixed(0)}% of the annual total. The partition is a model result and is not constrained by observations.` + srcNote() };
+    } },
+  { id: 'flood', file: 'Fig7_flood_frequency', title: 'Flood frequency (annual maxima)', aspect: 0.7, build(D, W) {
+      const A = annualSeries(D); if (A.length < 5) return null;
+      const mxs = A.map(a => a.peak).sort((x, y) => x - y), N = mxs.length, m = mean(mxs), sd = std(mxs) * Math.sqrt(N / (N - 1)), beta = sd * Math.sqrt(6) / Math.PI, mu = m - 0.5772 * beta;
+      const red = T => -Math.log(-Math.log(1 - 1 / T)), F = new SvgFig(W, Math.max(2.6, W * this.aspect)), L = 56, R = 14, top = 10, pw = F.w - L - R, ph = F.h - top - 62;
+      const Ts = [1.1, 2, 5, 10, 25, 50, 100], x0 = red(1.05), x1 = red(120), qmax = Math.max(mxs[N - 1], mu + beta * x1);
+      const a = F.panel({ x: L, y: top, w: pw, h: ph, xDom: [x0, x1], yDom: [0, niceMax(qmax)], xTicks: Ts.map(T => ({ v: red(T), lab: String(T) })), xGrid: true, xLabel: 'Return period (years, Gumbel scale)', yLabel: 'Annual maximum daily discharge (m³ s⁻¹)', yLabOff: 44 });
+      F.path([[a.sx(x0), a.sy(Math.max(0, mu + beta * x0))], [a.sx(x1), a.sy(mu + beta * x1)]], { stroke: PUB.c.sim, w: 1.4 });
+      mxs.forEach((q, i) => { const p = (i + 1 - 0.44) / (N + 0.12); F.add(`<circle cx="${n1(a.sx(-Math.log(-Math.log(p))))}" cy="${n1(a.sy(q))}" r="2.8" fill="#fff" stroke="${PUB.c.obs}" stroke-width="1"/>`); });
+      F.legend(L, F.h - 6, [{ lab: 'Simulated annual maxima', color: PUB.c.obs, kind: 'dot', fill: '#fff' }, { lab: 'Gumbel fit', color: PUB.c.sim }]);
+      return { svg: F.toString(), hIn: F.hIn, caption: `Gumbel (EV1) fit by the method of moments to ${N} simulated annual maximum daily discharges for ${D.name}; points use Gringorten plotting positions. With ${N} years of record, quantiles beyond about the ${Math.max(2, Math.round(N / 2))}-year return period are extrapolations with wide uncertainty, and daily means understate instantaneous peaks.` + srcNote() };
+    } },
+];
+
+// ── tables ───────────────────────────────────────────────────
+function pubTables() {
+  const D = pubData(); if (!D) return [];
+  const { r, n, obs } = D, ws = S.wsData, soil = S.soil, T = [], f = (v, d) => (v == null || !isFinite(v)) ? '—' : (+v).toFixed(d);
+  const est = k => (S.dataFlags && S.dataFlags.failed || []).some(x => x.indexOf(k) >= 0);
+  T.push({ id: 'T1', file: 'Table1_basin_and_data', title: `Table 1. Basin characteristics and data sources for ${D.name}.`, cols: ['Property', 'Value', 'Unit', 'Source'], rows: [
+    ['Outlet (lat, lon)', `${(+S.lat).toFixed(4)}, ${(+S.lon).toFixed(4)}`, '°', 'user'],
+    ['Drainage area', f(ws.areaKm2, ws.areaKm2 < 100 ? 1 : 0), 'km²', (S.basin && S.basin.source) || ''],
+    ['Mean elevation (range)', `${f(S.dem.mean, 0)} (${f(S.dem.min, 0)}–${f(S.dem.max, 0)})`, 'm', S.dem.realData ? 'Copernicus GLO-90 DEM via Open-Meteo' : 'estimated'],
+    ['Simulation period', `${r.dates[0]} to ${r.dates[n - 1]}`, '', ''],
+    ['Climate forcing', `${S.climate.nPoints || 0} point(s), basin mean`, '', S.climate.realData ? S.climate.source : 'SYNTHETIC stand-in'],
+    ['Mean annual precipitation', f(ws.annP, 0), 'mm', S.climate.srcShort || 'synthetic'],
+    ['Mean annual reference ET', f(ws.annPET, 0), 'mm', 'FAO-56 Penman–Monteith'],
+    ['Mean air temperature', f(ws.meanT != null ? ws.meanT : mean(Array.from(r.Tx, (v, i) => (v + r.Tn[i]) / 2)), 1), '°C', S.climate.srcShort || 'synthetic'],
+    ['Köppen–Geiger class', ws.koppen || '—', '', 'Peel et al. (2007) rules'],
+    ['Dominant land cover', S.lc.lcClass, '', S.lc.realData ? 'MODIS MCD12Q1 IGBP (ORNL DAAC)' : 'estimated from climate'],
+    ['Soil texture (0–1 m)', soil.textClass || '—', '', soil.realData ? 'ISRIC SoilGrids v2' : 'estimated'],
+    ['Sand / silt / clay', `${f(soil.sand, 0)} / ${f(soil.silt, 0)} / ${f(soil.clay, 0)}`, '%', soil.realData ? 'ISRIC SoilGrids v2' : 'estimated'],
+    ['Hydrologic soil group', ws.hsg, '', 'from saturated conductivity'],
+    ['Discharge record', D.nObs ? `${D.nObs.toLocaleString('en-US')} days` : 'none', '', D.nObs ? (D.real ? S.obsMeta.source : 'Budyko–Fu synthetic reference (not observed)') : ''],
+  ], note: srcNote().trim() });
+  const cb = S.calibBest, pri = S.prior || {};
+  T.push({ id: 'T2', file: 'Table2_parameters', title: `Table 2. Model parameters${cb ? ', a-priori and calibrated values' : ' (a-priori values from spatial data; uncalibrated)'}.`,
+    cols: ['Parameter', 'Description', 'Range', 'A-priori', cb ? 'Calibrated' : 'Current'], num: [3, 4],
+    rows: PARAM_DEFS.map(d => { const lo = document.getElementById('lo_' + d.k), hi = document.getElementById('hi_' + d.k), dd = Math.max(d.dec, 2);
+      return [d.lab, d.desc, `${lo ? lo.value : d.min}–${hi ? hi.value : d.max}`, pri[d.k] != null ? (+pri[d.k]).toFixed(dd) : '—', (+S.params[d.k]).toFixed(dd)]; }),
+    note: cb ? `Calibration: ${cb._method}, objective ${cb._objective}, ${cb._runs} model runs, first 70% of the discharge record; the remaining 30% was withheld for validation.` : 'A-priori values are derived from soil, land-cover and terrain data.' });
+  if (D.nObs >= 30) {
+    const row = (lab, m) => [lab, m.n, f(m.kge, 3), f(m.r, 3), f(m.beta, 3), f(m.gamma, 3), f(m.nse, 3), f(m.lnse, 3), f(m.pbias, 1), f(m.rmse, 3)], rows = [row('Full period', calcMetrics(r.flow, obs))];
+    if (cb && cb._cal && cb._val && cb._val.n >= 30) { rows.push(row('Calibration', cb._cal)); rows.push(row('Validation', cb._val)); }
+    T.push({ id: 'T3', file: 'Table3_performance', title: `Table 3. Model performance for daily discharge against ${D.real ? S.obsMeta.source : 'the synthetic Budyko–Fu reference'}.`,
+      cols: ['Period', 'n (days)', 'KGE', 'r', 'β (bias ratio)', 'γ (variability ratio)', 'NSE', 'log NSE', 'PBIAS (%)', 'RMSE (m³ s⁻¹)'], num: [1, 2, 3, 4, 5, 6, 7, 8, 9], rows,
+      note: `KGE: Kling–Gupta efficiency (Kling et al. 2012). PBIAS positive = model underestimates. A ${WARMUP_DAYS}-day warm-up is excluded.` + (D.real ? '' : ' The reference is synthetic, so these scores measure consistency with a Budyko estimate, not agreement with observations.') + (cb && cb._val ? ' Calibration and validation rows apply to the calibrated parameter set.' : '') });
+  }
+  const A = annualSeries(D);
+  if (A.length) { const hasO = A.some(a => a.Qo != null), rows = A.map(a => [a.y, f(a.P, 0), f(a.PET, 0), f(a.ET, 0), f(a.Q, 0)].concat(hasO ? [f(a.Qo, 0)] : [], [f(a.Q / (a.P || 1), 2), f(a.meanQ, 2), f(a.peak, 1)]));
+    const av = k => mean(A.map(a => a[k])), ao = A.filter(a => a.Qo != null);
+    rows.push(['Mean', f(av('P'), 0), f(av('PET'), 0), f(av('ET'), 0), f(av('Q'), 0)].concat(hasO ? [ao.length ? f(mean(ao.map(a => a.Qo)), 0) : '—'] : [], [f(av('Q') / (av('P') || 1), 2), f(av('meanQ'), 2), f(av('peak'), 1)]));
+    T.push({ id: 'T4', file: 'Table4_annual_water_balance', title: 'Table 4. Annual water balance by calendar year.', cols: ['Year', 'P (mm)', 'Reference ET (mm)', 'Actual ET (mm)', 'Runoff, sim. (mm)'].concat(hasO ? [`Runoff, ${D.real ? 'obs.' : 'ref.'} (mm)`] : [], ['Runoff ratio', 'Mean Q (m³ s⁻¹)', 'Peak daily Q (m³ s⁻¹)']),
+      num: 'all', rows, boldLast: true, note: `Long-term closure error of the simulated balance: ${r.massBalance.closureErr}% of precipitation. ${hasO ? 'Reference-runoff cells are blank for years with under 90% of days available.' : ''}` }); }
+  const M = monthlyClim(D), hasMo = M.some(m => m.Qo != null);
+  T.push({ id: 'T5', file: 'Table5_monthly_climatology', title: 'Table 5. Mean monthly climate and water balance.', cols: ['Month', 'Mean T (°C)', 'P (mm)', 'Reference ET (mm)', 'Actual ET (mm)', 'Runoff, sim. (mm)'].concat(hasMo ? [`Runoff, ${D.real ? 'obs.' : 'ref.'} (mm)`] : [], ['Surface (mm)', 'Lateral (mm)', 'Baseflow (mm)']), num: 'all',
+    rows: M.map(m => [m.lab, f(m.T, 1), f(m.P, 1), f(m.PET, 1), f(m.ET, 1), f(m.Q, 1)].concat(hasMo ? [f(m.Qo, 1)] : [], [f(m.sf, 1), f(m.lt, 1), f(m.bf, 1)]))
+      .concat([['Year', f(mean(M.map(m => m.T)), 1)].concat(['P', 'PET', 'ET', 'Q'].map(k => f(M.reduce((s, m) => s + m[k], 0), 0)), hasMo ? [M.every(m => m.Qo != null) ? f(M.reduce((s, m) => s + m.Qo, 0), 0) : '—'] : [], ['sf', 'lt', 'bf'].map(k => f(M.reduce((s, m) => s + m[k], 0), 0)))]),
+    boldLast: true, note: 'Surface, lateral and baseflow columns are runoff generation before channel routing.' });
+  const sig = arr => { const v = arr.filter(x => x != null).sort((a, b) => b - a), q = p => v.length ? v[Math.min(v.length - 1, Math.floor(v.length * p))] : null; let ad = 0, sm = 0, prev = null;
+    for (const x of arr) { if (x != null) { if (prev != null) ad += Math.abs(x - prev); sm += x; } prev = x; } return { mean: v.length ? mean(v) : null, q5: q(0.05), q50: q(0.5), q95: q(0.95), rbi: sm ? ad / sm : null, max: v[0] }; };
+  const sS = sig(Array.from(r.flow).slice(WARMUP_DAYS)), sO = D.nObs ? sig(obs.slice(WARMUP_DAYS)) : null, dr = droughtAnalysis(r), ff = A.length >= 5 ? floodFrequency(r) : null, fs = flowSignatures(r.flow, r.bfQ);
+  const rows6 = [['Mean discharge', 'm³ s⁻¹', f(sS.mean, 3), sO ? f(sO.mean, 3) : '—'], ['Q5 (high flow)', 'm³ s⁻¹', f(sS.q5, 3), sO ? f(sO.q5, 3) : '—'], ['Q50 (median)', 'm³ s⁻¹', f(sS.q50, 3), sO ? f(sO.q50, 3) : '—'], ['Q95 (low flow)', 'm³ s⁻¹', f(sS.q95, 4), sO ? f(sO.q95, 4) : '—'],
+    ['Maximum daily discharge', 'm³ s⁻¹', f(sS.max, 1), sO ? f(sO.max, 1) : '—'], ['Richards–Baker flashiness', '–', f(sS.rbi, 3), sO ? f(sO.rbi, 3) : '—'], ['Baseflow index (model partition)', '–', f(fs.bfi, 3), '—'],
+    ['Runoff ratio (Q/P)', '–', f(r.massBalance.runoffCoeff, 3), '—'], ['Mean annual 7-day minimum', 'm³ s⁻¹', f(dr.min7mean, 4), '—'], ['7Q10 (log-normal)', 'm³ s⁻¹', dr.q7q10 != null ? f(dr.q7q10, 4) : 'needs ≥5 years', '—']];
+  if (ff) ff.rows.forEach(x => rows6.push([`${x.T}-year flood (Gumbel)`, 'm³ s⁻¹', f(x.Q, 1), '—']));
+  T.push({ id: 'T6', file: 'Table6_flow_statistics', title: 'Table 6. Flow statistics from daily discharge.', cols: ['Statistic', 'Unit', 'Simulated', sO ? (D.real ? 'Observed' : 'Reference (synthetic)') : 'Observed'], num: [2, 3], rows: rows6,
+    note: `Flood quantiles are from ${A.length} simulated annual maxima of daily mean flow; they understate instantaneous peaks and are extrapolations beyond roughly half the record length.` });
+  return T;
+}
+
+// ── export helpers ───────────────────────────────────────────
+function tableCSV(t) { const q = v => { const s = String(v == null ? '' : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  return '﻿' + [[t.title], t.cols].concat(t.rows, t.note ? [['Note: ' + t.note]] : []).map(r => r.map(q).join(',')).join('\r\n') + '\r\n'; }
+function tableHTML(t, pub) {
+  const isNum = c => t.num === 'all' ? c > 0 : (t.num || []).indexOf(c) >= 0, al = c => isNum(c) ? 'right' : 'left';
+  return `<table class="${pub ? 'pubt' : 'pubt'}"><caption>${xmlEsc(t.title)}</caption><thead><tr>${t.cols.map((c, i) => `<th style="text-align:${al(i)}">${xmlEsc(c)}</th>`).join('')}</tr></thead><tbody>` +
+    t.rows.map((r, k) => `<tr${t.boldLast && k === t.rows.length - 1 ? ' class="tot"' : ''}>${r.map((c, i) => `<td style="text-align:${al(i)}">${xmlEsc(c)}</td>`).join('')}</tr>`).join('') +
+    `</tbody>${t.note ? `<tfoot><tr><td colspan="${t.cols.length}">${xmlEsc(t.note)}</td></tr></tfoot>` : ''}</table>`;
+}
+const PUB_TABLE_CSS = 'table.pubt{border-collapse:collapse;font:10pt Arial,Helvetica,sans-serif;color:#111;margin:0 0 6px;width:100%}table.pubt caption{caption-side:top;text-align:left;font-weight:bold;padding:0 0 5px;color:#111}' +
+  'table.pubt th{border-top:1.5pt solid #111;border-bottom:.75pt solid #111;padding:4px 8px;font-weight:bold;white-space:nowrap}table.pubt td{padding:3px 8px;border:none}table.pubt tbody tr:last-child td{border-bottom:1.5pt solid #111}' +
+  'table.pubt tr.tot td{border-top:.75pt solid #111;font-weight:bold}table.pubt tfoot td{font-size:8.5pt;color:#333;padding-top:5px;border:none!important;text-align:left;white-space:normal}';
+
+function xlsxBlob(tables) {
+  const colName = i => { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };
+  const cell = (v, r, c, st) => { const ref = colName(c) + (r + 1), s = String(v == null ? '' : v).trim(), num = /^-?\d+(\.\d+)?$/.test(s.replace(/,/g, '')) && !/^0\d/.test(s);
+    return num ? `<c r="${ref}"${st ? ` s="${st}"` : ''}><v>${s.replace(/,/g, '')}</v></c>` : `<c r="${ref}" t="inlineStr"${st ? ` s="${st}"` : ''}><is><t xml:space="preserve">${xmlEsc(s === '—' ? '' : s)}</t></is></c>`; };
+  const sheet = t => { const rows = [[t.title], [], t.cols].concat(t.rows, t.note ? [[], ['Note: ' + t.note]] : []), w = t.cols.map((c, i) => Math.min(60, Math.max(8, String(c).length + 2, ...t.rows.map(r => String(r[i] == null ? '' : r[i]).length + 2))));
+    return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols>${w.map((x, i) => `<col min="${i + 1}" max="${i + 1}" width="${x}" customWidth="1"/>`).join('')}</cols><sheetData>` +
+      rows.map((r, ri) => `<row r="${ri + 1}">${r.map((v, ci) => cell(v, ri, ci, ri === 0 || ri === 2 || (t.boldLast && ri === 2 + t.rows.length) ? 1 : 0)).join('')}</row>`).join('') + '</sheetData></worksheet>'; };
+  const files = [
+    { name: '[Content_Types].xml', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${tables.map((t, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>` },
+    { name: '_rels/.rels', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>' },
+    { name: 'xl/workbook.xml', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${tables.map((t, i) => `<sheet name="${xmlEsc(t.file.replace(/_/g, ' ').slice(0, 31))}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join('')}</sheets></workbook>` },
+    { name: 'xl/_rels/workbook.xml.rels', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${tables.map((t, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join('')}<Relationship Id="rId${tables.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` },
+    { name: 'xl/styles.xml', text: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs></styleSheet>' },
+  ].concat(tables.map((t, i) => ({ name: `xl/worksheets/sheet${i + 1}.xml`, text: sheet(t) })));
+  return new Blob([makeZip(files)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+}
+function wordDoc(tables) {
+  return '﻿<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>HydroGlobal tables</title><style>' +
+    PUB_TABLE_CSS + 'body{font:11pt Arial,Helvetica,sans-serif}</style></head><body>' + tables.map(t => tableHTML(t, true) + '<p>&nbsp;</p>').join('') + '</body></html>';
+}
+// Rasterise an SVG string to PNG at the requested resolution and stamp the dpi in a pHYs chunk.
+function svgToPng(svg, wIn, hIn, dpi) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => { try { const c = document.createElement('canvas'); c.width = Math.round(wIn * dpi); c.height = Math.round(hIn * dpi);
+      const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob(async b => { if (!b) return rej(new Error('PNG encoding failed')); res(new Blob([pngSetDpi(new Uint8Array(await b.arrayBuffer()), dpi)], { type: 'image/png' })); }, 'image/png'); } catch (e) { rej(e); } };
+    img.onerror = () => rej(new Error('The figure could not be rendered as an image'));
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+function pngSetDpi(u8, dpi) {
+  if (u8.length < 41 || u8[12] !== 73 || u8[13] !== 72) return u8;                 // IHDR must be the first chunk
+  const ppm = Math.round(dpi / 0.0254), ch = new Uint8Array(21), dv = new DataView(ch.buffer);
+  dv.setUint32(0, 9); ch.set([112, 72, 89, 115], 4); dv.setUint32(8, ppm); dv.setUint32(12, ppm); ch[16] = 1; dv.setUint32(17, crc32(ch.subarray(4, 17)));
+  const out = new Uint8Array(u8.length + 21); out.set(u8.subarray(0, 33), 0); out.set(ch, 33); out.set(u8.subarray(33), 54); return out;
+}
+
+// ── panel ────────────────────────────────────────────────────
+const PUBSTATE = { figs: [], tables: [], W: 7.2 };
+function pubBase() { return 'HydroGlobal_' + (S.name || 'basin').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, ''); }
+function renderPubPanel() {
+  const fl = document.getElementById('figList'), tl = document.getElementById('tblList'), D = pubData();
+  if (!D) { fl.innerHTML = '<div class="card" style="color:var(--txt2)">Load a watershed and run a simulation first. Figures and tables are generated from the current run.</div>'; tl.innerHTML = ''; PUBSTATE.figs = []; PUBSTATE.tables = []; return; }
+  const key = document.getElementById('figW').value; PUBSTATE.W = PUB.widths[key] || 7.2;
+  PUBSTATE.figs = []; let k = 0;
+  for (const def of PUB_FIGS) { if (def.needObs && !D.nObs) continue; let out = null; try { out = def.build(D, PUBSTATE.W); } catch (e) { console.warn('figure failed', def.id, e); }
+    if (!out) continue; k++; const file = def.file.replace(/^Fig\d+/, 'Fig' + k);
+    PUBSTATE.figs.push({ id: def.id, num: k, file, title: def.title, svg: out.svg, wIn: out.wIn || PUBSTATE.W, hIn: out.hIn, caption: `Figure ${k}. ${out.caption}` }); }
+  PUBSTATE.tables = pubTables().map((t, i) => { const num = i + 1; return Object.assign({}, t, { title: t.title.replace(/^Table \d+/, 'Table ' + num), file: t.file.replace(/^Table\d+/, 'Table' + num) }); });
+  const btn = (lab, fn) => `<button class="btn btn-ghost" style="width:auto;padding:5px 10px;margin:0 6px 0 0" onclick="${fn}">${lab}</button>`;
+  fl.innerHTML = PUBSTATE.figs.map((g, i) => `<div class="card" style="margin-bottom:12px"><h3>Figure ${g.num} · ${xmlEsc(g.title)}</h3>
+    <div style="background:#fff;border-radius:4px;padding:8px;text-align:center;overflow:auto">${g.svg.replace('<svg ', '<svg style="max-width:100%;height:auto" ')}</div>
+    <div style="font-size:11.5px;color:var(--txt2);line-height:1.5;margin:8px 0">${xmlEsc(g.caption)}</div>
+    <div>${btn('⬇ SVG (vector)', `pubDownloadFig(${i},'svg')`)}${btn('⬇ PNG 300 dpi', `pubDownloadFig(${i},300)`)}${btn('⬇ PNG 600 dpi', `pubDownloadFig(${i},600)`)}${btn('Copy caption', `pubCopy(PUBSTATE.figs[${i}].caption)`)}</div></div>`).join('');
+  tl.innerHTML = PUBSTATE.tables.map((t, i) => `<div class="card" style="margin-bottom:12px"><div style="background:#fff;border-radius:4px;padding:12px;overflow:auto">${tableHTML(t)}</div>
+    <div style="margin-top:8px">${btn('⬇ CSV', `pubDownloadTable(${i})`)}${btn('Copy (paste into Word/Excel)', `pubCopyTable(${i})`)}</div></div>`).join('');
+}
+async function pubDownloadFig(i, fmt) {
+  const g = PUBSTATE.figs[i]; if (!g) return;
+  try { if (fmt === 'svg') saveBlob(new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + g.svg], { type: 'image/svg+xml' }), `${pubBase()}_${g.file}.svg`);
+    else saveBlob(await svgToPng(g.svg, g.wIn, g.hIn, fmt), `${pubBase()}_${g.file}_${fmt}dpi.png`);
+    toast(`⬇ Figure ${g.num} saved (${fmt === 'svg' ? 'SVG' : fmt + ' dpi PNG, ' + Math.round(g.wIn * fmt) + '×' + Math.round(g.hIn * fmt) + ' px'})`); }
+  catch (e) { toast('⚠ ' + e.message); }
+}
+function pubDownloadTable(i) { const t = PUBSTATE.tables[i]; if (t) saveBlob(new Blob([tableCSV(t)], { type: 'text/csv;charset=utf-8' }), `${pubBase()}_${t.file}.csv`); }
+function pubCopy(text) { (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(text) : Promise.reject()).then(() => toast('📋 Copied'), () => fallbackCopy(text)); }
+function pubCopyTable(i) {
+  const t = PUBSTATE.tables[i]; if (!t) return; const html = `<style>${PUB_TABLE_CSS}</style>` + tableHTML(t, true), tsv = [t.cols].concat(t.rows).map(r => r.join('\t')).join('\n');
+  try { navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([tsv], { type: 'text/plain' }) })]).then(() => toast('📋 Table copied with formatting'), () => pubCopy(tsv)); }
+  catch (e) { pubCopy(tsv); }
+}
+function pubNeed() { if (!PUBSTATE.figs.length && !PUBSTATE.tables.length) renderPubPanel(); if (!PUBSTATE.tables.length) { toast('⚠ Run a simulation first.'); return false; } return true; }
+function pubDownloadXlsx() { if (pubNeed()) { saveBlob(xlsxBlob(PUBSTATE.tables), `${pubBase()}_tables.xlsx`); toast(`⬇ ${PUBSTATE.tables.length} tables saved as one Excel workbook`); } }
+function pubDownloadWord() { if (pubNeed()) { saveBlob(new Blob([wordDoc(PUBSTATE.tables)], { type: 'application/msword' }), `${pubBase()}_tables.doc`); toast('⬇ Tables saved as a Word document'); } }
+function pubReportHTML() {
+  const D = pubData(), now = new Date().toISOString().slice(0, 10), cb = S.calibBest;
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${xmlEsc(D.name)} — HydroGlobal report</title><style>body{font:11pt/1.5 Arial,Helvetica,sans-serif;color:#111;max-width:7.6in;margin:0.6in auto;padding:0 0.3in}h1{font-size:18pt;margin:0 0 4px}h2{font-size:13pt;margin:26px 0 8px;border-bottom:1px solid #999;padding-bottom:3px}` +
+    `.meta{color:#444;font-size:10pt}.warn{border:1px solid #b45309;background:#fff7ed;padding:8px 12px;font-size:10pt;margin:12px 0}figure{margin:0 0 22px;page-break-inside:avoid}figure svg{max-width:100%;height:auto}figcaption{font-size:9.5pt;color:#222;margin-top:6px}.tw{page-break-inside:avoid;margin:0 0 20px;overflow-x:auto}${PUB_TABLE_CSS}@media print{body{margin:0;max-width:none}}</style></head><body>` +
+    `<h1>${xmlEsc(D.name)}: watershed simulation report</h1><div class="meta">Generated ${now} with HydroGlobal v3 · outlet ${(+S.lat).toFixed(4)}°, ${(+S.lon).toFixed(4)}° · ${D.area.toLocaleString('en-US', { maximumFractionDigits: 0 })} km² · ${D.r.dates[0]} to ${D.r.dates[D.n - 1]}</div>` +
+    ((S.dataFlags && S.dataFlags.failed && S.dataFlags.failed.length) || !D.real ? `<div class="warn">${S.dataFlags && S.dataFlags.failed && S.dataFlags.failed.length ? 'Inputs that could not be retrieved and were estimated: ' + xmlEsc(S.dataFlags.failed.join(', ')) + '. ' : ''}${D.real ? '' : 'No observed discharge was available; comparisons use a synthetic Budyko–Fu reference and are not a validation.'}</div>` : '') +
+    `<p>Parameters: ${cb ? xmlEsc(`calibrated with ${cb._method} (objective ${cb._objective}, ${cb._runs} runs) on the first 70% of the discharge record` + (D.real ? '' : ' (synthetic reference)')) : 'a-priori values from spatial data, not calibrated'}. To save this report as a PDF, use the browser's Print command and choose “Save as PDF”.</p>` +
+    `<h2>Figures</h2>${PUBSTATE.figs.map(g => `<figure>${g.svg}<figcaption>${xmlEsc(g.caption)}</figcaption></figure>`).join('')}<h2>Tables</h2>${PUBSTATE.tables.map(t => `<div class="tw">${tableHTML(t, true)}</div>`).join('')}` +
+    `<p class="meta">Model: daily lumped SWAT-type water balance with elevation-band snow, curve-number runoff, two groundwater stores and linear-reservoir channel routing. Results depend on the quality of global input data and should be checked against local observations before use in design or regulation.</p></body></html>`;
+}
+function pubDownloadReport() { if (pubNeed()) { saveBlob(new Blob([pubReportHTML()], { type: 'text/html;charset=utf-8' }), `${pubBase()}_report.html`); toast('⬇ Report saved. Open it and print to PDF if needed.'); } }
+async function pubDownloadAll() {
+  if (!pubNeed()) return; toast('⏳ Rendering figures at 300 dpi…');
+  try {
+    const files = [], caps = [];
+    for (const g of PUBSTATE.figs) { files.push({ name: `figures/${g.file}.svg`, text: '<?xml version="1.0" encoding="UTF-8"?>\n' + g.svg });
+      files.push({ name: `figures/${g.file}_300dpi.png`, data: new Uint8Array(await (await svgToPng(g.svg, g.wIn, g.hIn, 300)).arrayBuffer()) }); caps.push(g.caption); }
+    PUBSTATE.tables.forEach(t => files.push({ name: `tables/${t.file}.csv`, text: tableCSV(t) }));
+    files.push({ name: 'tables/all_tables.xlsx', data: new Uint8Array(await xlsxBlob(PUBSTATE.tables).arrayBuffer()) }, { name: 'tables/all_tables.doc', text: wordDoc(PUBSTATE.tables) },
+      { name: 'figure_captions.txt', text: caps.join('\r\n\r\n') + '\r\n' }, { name: 'report.html', text: pubReportHTML() });
+    saveBlob(makeZip(files), `${pubBase()}_figures_and_tables.zip`); toast(`📁 ${PUBSTATE.figs.length} figures and ${PUBSTATE.tables.length} tables saved as one ZIP`);
+  } catch (e) { console.error(e); toast('⚠ Could not build the ZIP: ' + e.message); }
+}
+// remember the a-priori parameter set so Table 2 can report it after calibration
+(function () { const orig = loadWatershed; loadWatershed = async function () { const out = await orig.apply(this, arguments); if (S.params) S.prior = Object.assign({}, S.params); return out; }; })();
 
 </script>
 </body>
