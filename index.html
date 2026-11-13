@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   ============================================================================
-  HydroGlobal v3 — Real Watershed Simulation Platform
+  HydroGlobal v4 — Real Watershed Simulation Platform
   Copyright (c) 2026 Timothy O. Randhir. All rights reserved.
 
   Author:  Timothy O. Randhir, Ph.D.
@@ -20,7 +20,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="author" content="Timothy O. Randhir">
 <meta name="copyright" content="© 2026 Timothy O. Randhir. All rights reserved.">
-<title>HydroGlobal v3 — Watershed Simulation</title>
+<title>HydroGlobal v4 — Watershed Simulation</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <!-- Leaflet 1.9.4 (BSD-2-Clause, (c) Volodymyr Agafonkin) embedded so the map works without a CDN -->
 <style>/* required styles */
@@ -883,12 +883,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
 .leaflet-control-zoom a{background:rgba(29,50,66,.92)!important;color:var(--txt)!important;border-color:var(--bord2)!important;}
 .leaflet-control-zoom a:hover{background:var(--surf3)!important;color:var(--c1)!important;}
 .leaflet-bar{border:1px solid var(--bord2)!important;box-shadow:none!important;}
+.sub-lbl{background:rgba(255,255,255,.85);border:1px solid #0b3466;border-radius:3px;color:#0b3466;font:700 10px/14px system-ui,sans-serif;text-align:center}
 </style>
 </head>
 <body>
 
 <div class="topbar">
-  <div class="brand">Hydro<em>Global</em><sup>v3</sup></div>
+  <div class="brand">Hydro<em>Global</em><sup>v4</sup></div>
   <div class="tabs">
     <button class="tab on"  onclick="setTab('sim',this)">Simulation</button>
     <button class="tab"     onclick="setTab('calib',this)">Calibration</button>
@@ -927,6 +928,15 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
       <div><div class="coo-lbl">Latitude</div><input class="inp" id="latI" type="number" placeholder="e.g. 45.12" step="0.001" oninput="onCoord()"></div>
       <div><div class="coo-lbl">Longitude</div><input class="inp" id="lonI" type="number" placeholder="e.g. -93.5" step="0.001" oninput="onCoord()"></div>
     </div>
+    <div class="pr" style="margin:7px 0 4px"><span class="pl" title="Sub-basins are built from MERIT-Basins unit catchments along the MERIT-Hydro river network; each has its own climate, terrain, soil and land-cover HRUs">Spatial units</span>
+      <select class="sel" id="spMode" style="flex:1" onchange="onSpatialMode()">
+        <option value="sub" selected>Sub-basins + HRUs</option>
+        <option value="lumped">Lumped (one unit)</option>
+      </select></div>
+    <div class="pr" style="margin-bottom:2px"><span class="pl">Sub-basins</span>
+      <select class="sel" id="spDetail" style="flex:1">
+        <option value="coarse">Up to 8</option><option value="medium" selected>Up to 16</option><option value="fine">Up to 30</option>
+      </select></div>
     <button class="btn btn-c" id="loadBtn" onclick="loadWatershed()" disabled style="margin-top:7px;">⬇ Fetch Real Data</button>
   </div>
 
@@ -1059,6 +1069,11 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
       <div class="card"><h3>Flow Duration Curve</h3><canvas id="rFDC" style="width:100%;height:200px"></canvas></div>
       <div class="card"><h3>Annual Water Balance (mm)</h3><canvas id="rWB" style="width:100%;height:200px"></canvas></div>
       <div class="card"><h3>Obs vs Sim Scatter</h3><canvas id="rScatter" style="width:100%;height:200px"></canvas></div>
+      <div class="card" id="rSubCard" style="grid-column:1/-1;display:none">
+        <h3>Sub-basin Water Balance (mean annual, mm)</h3>
+        <div style="overflow-x:auto"><table class="ptbl" style="font-size:11px"><thead><tr><th>Sub</th><th>To</th><th>Area km²</th><th>Elev m</th><th>P</th><th>PET</th><th>ET</th><th>Yield</th><th>Q/P</th><th>Surf/Lat/Base %</th><th style="text-align:left">HRUs (land cover)</th><th style="text-align:left">Soil</th><th>Outflow m³/s</th></tr></thead><tbody id="rSubBody"></tbody></table></div>
+        <div class="anote">Yield is the water each sub-basin generates (surface, lateral and groundwater flow) before channel routing; outflow includes everything routed from upstream sub-basins.</div>
+      </div>
     </div>
   </div>
 
@@ -1158,6 +1173,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
           <div style="cursor:pointer;color:var(--c2)" onclick="previewFile('soil')">📄 basin_properties.csv</div>
           <div style="cursor:pointer;color:var(--c2)" onclick="previewFile('params')">📄 parameters_and_performance.txt</div>
           <div style="cursor:pointer;color:var(--amber)" onclick="previewFile('95ppu')">📄 95ppu_uncertainty.csv</div>
+          <div style="cursor:pointer;color:var(--c2)" onclick="previewFile('subgeo')">🗺 subbasins.geojson</div>
         </div>
         <button class="btn btn-a" style="margin-top:10px" onclick="downloadCurrent()">⬇ Download this file</button>
         <button class="btn btn-ghost" style="margin-top:6px;width:100%" onclick="downloadCSV()">⬇ Download all (ZIP)</button>
@@ -1179,7 +1195,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
 
       <div class="card">
         <h3>Overview</h3>
-        <p class="ptxt">HydroGlobal v3 is a browser-based watershed simulator. From one outlet point it delineates the basin, retrieves climate, terrain, soil and land-cover data from open services, derives a-priori parameters, runs a daily SWAT-type water-balance model, and calibrates it against observed discharge where a record is available. In split-sample tests on 16 gauged French catchments (1999–2018) the calibrated engine reached a median validation KGE of 0.86 and NSE of 0.82 using catchment-average observed forcing.</p>
+        <p class="ptxt">HydroGlobal v4 is a browser-based watershed simulator. From one outlet point it delineates the basin and divides it into sub-basins built from MERIT-Basins catchments, retrieves climate, terrain, soil and land-cover data for each sub-basin from open services, derives a-priori parameters for every sub-basin and land-cover unit (HRU), runs a semi-distributed daily SWAT-type water-balance model with routing between sub-basins, and calibrates it against observed discharge where a record is available. In split-sample tests on 20 gauged basins with observed forcing, the engine reached a median validation KGE of 0.86; with live data in six US basins, sub-basin and lumped runs reached median validation KGEs of 0.77 and 0.71, and the sub-basin model was much better at interior gauges where precipitation and snowmelt vary strongly within the basin.</p>
         <p class="ptxt">All computation happens locally in your browser. Data is fetched on demand from public providers listed below.</p>
       </div>
 
@@ -1229,7 +1245,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
       <div class="card" style="grid-column:1/-1">
         <h3>Reference Discharge &amp; Limitations</h3>
         <p class="ptxt"><b>Scores only mean something against observations.</b> Where no gauge record is found or uploaded, the app builds a synthetic reference: the long-term runoff volume comes from the Budyko–Fu curve and the daily pattern from this same model with different parameters. Calibrating to it tests internal consistency only, and the interface labels it as synthetic everywhere. Upload a gauge record (GRDC, national services) for any real application.</p><p class="ptxt" style="margin-top:6px">Other limits: the soil and aquifer are lumped, so strongly heterogeneous or regulated basins (dams, irrigation, large lakes) are poorly represented; ERA5 precipitation can be biased in mountains and the tropics; very large basins are routed with a simple storage cascade. A status badge turns red, and a warning is shown, whenever a data layer could not be retrieved and was estimated.</p>
-        <p class="ptxt" style="color:var(--txt3);margin-top:6px">HydroGlobal v3 · client-side hydrological simulator · ERA5 + Copernicus GLO-90 + ISRIC SoilGrids + MODIS MCD12Q1 + MERIT-Hydro/HydroSHEDS. Key references: Arnold et al. 2012 (SWAT); Tolson &amp; Shoemaker 2007 (DDS); Neitsch et al. 2011 (SWAT theory); Beven &amp; Binley 1992 (GLUE); Gupta et al. 2009 (KGE); Fu 1981 / Zhang 2001 (Budyko); Lehner &amp; Grill 2013 (HydroBASINS); Heberger 2022 (Global Watersheds).</p>
+        <p class="ptxt" style="color:var(--txt3);margin-top:6px">HydroGlobal v4 · client-side hydrological simulator · ERA5 + Copernicus GLO-90 + ISRIC SoilGrids + MODIS MCD12Q1 + MERIT-Hydro/MERIT-Basins. Key references: Arnold et al. 2012 (SWAT); Tolson &amp; Shoemaker 2007 (DDS); Neitsch et al. 2011 (SWAT theory); Beven &amp; Binley 1992 (GLUE); Gupta et al. 2009 (KGE); Fu 1981 / Zhang 2001 (Budyko); Lehner &amp; Grill 2013 (HydroBASINS); Heberger 2022 (Global Watersheds); Lin et al. 2019 (MERIT-Basins).</p>
       </div>
 
       <div class="card" style="grid-column:1/-1">
@@ -1245,18 +1261,18 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
         <p class="ptxt">If you use HydroGlobal in research, teaching, or reports, please cite it as follows. Replace the access date with the day you used the tool.</p>
 
         <div class="cite-lbl">Recommended citation</div>
-        <div class="cite" id="citePlain"><button class="cite-copy" onclick="copyCite('citePlain',this)">Copy</button>Randhir, T.O. (2026). <i>HydroGlobal v3: A browser-based watershed hydrology simulation platform</i> [Computer software]. University of Massachusetts Amherst. Retrieved [access date].</div>
+        <div class="cite" id="citePlain"><button class="cite-copy" onclick="copyCite('citePlain',this)">Copy</button>Randhir, T.O. (2026). <i>HydroGlobal v4: A browser-based watershed hydrology simulation platform</i> [Computer software]. University of Massachusetts Amherst. Retrieved [access date].</div>
 
         <div class="cite-lbl">APA (7th ed.)</div>
-        <div class="cite" id="citeAPA"><button class="cite-copy" onclick="copyCite('citeAPA',this)">Copy</button>Randhir, T. O. (2026). <i>HydroGlobal v3</i> (Version 3) [Computer software]. University of Massachusetts Amherst.</div>
+        <div class="cite" id="citeAPA"><button class="cite-copy" onclick="copyCite('citeAPA',this)">Copy</button>Randhir, T. O. (2026). <i>HydroGlobal v4</i> (Version 4) [Computer software]. University of Massachusetts Amherst.</div>
 
         <div class="cite-lbl">BibTeX</div>
         <div class="cite" id="citeBib"><button class="cite-copy" onclick="copyCite('citeBib',this)">Copy</button>@misc{randhir2026hydroglobal,
   author    = {Randhir, Timothy O.},
-  title     = {{HydroGlobal v3: A browser-based watershed
+  title     = {{HydroGlobal v4: A browser-based watershed
                hydrology simulation platform}},
   year      = {2026},
-  version   = {3},
+  version   = {4},
   publisher = {University of Massachusetts Amherst},
   note      = {Computer software}
 }</div>
@@ -1329,6 +1345,13 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
   <!-- MAP -->
   <div class="map-wrap">
     <div id="map"></div>
+    <div id="subLegend" style="display:none;position:absolute;left:10px;bottom:26px;z-index:800;background:var(--surf);border:1px solid var(--bord);border-radius:6px;padding:6px 8px;width:190px;box-shadow:0 1px 4px rgba(0,0,0,.25)">
+      <select id="subVar" class="sel" style="width:100%;font-size:11px;margin-bottom:4px" onchange="colorSubbasins()">
+        <option value="P" selected>Precipitation (mm/yr)</option><option value="Z">Mean elevation (m)</option><option value="CN">Curve number (a-priori)</option>
+        <option value="Q">Water yield (mm/yr)</option><option value="QP">Runoff ratio</option><option value="ET">Actual ET (mm/yr)</option><option value="id">Outlines only</option>
+      </select>
+      <div id="subLegBar"></div>
+    </div>
 
     <!-- loading overlay -->
     <div class="map-loading" id="mapLoading">
@@ -1344,6 +1367,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
       <div class="mc-btn"     id="btnOSM"  title="Dark base map"   onclick="setTile('dark')">🌑</div>
       <div class="mc-btn"     id="btnSat"  title="Satellite"       onclick="setTile('sat')">🛰</div>
       <div class="mc-btn"     id="btnTopo" title="Terrain"         onclick="setTile('topo')">🏔</div>
+      <div class="mc-btn on"  id="btnSub"  title="Sub-basins and stream network" onclick="toggleSubLayer()">⬡</div>
       <div class="mc-btn"     id="btnReset" title="Reset view"     onclick="mapReset()">⌂</div>
       <div class="mc-btn"     id="btnCirc" title="Watershed area"  onclick="toggleCircle()">🌀</div>
     </div>
@@ -1358,6 +1382,7 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
       <div class="wc-row"><span class="wc-k">Climate</span><span class="wc-v" id="wc_kop">—</span></div>
       <div class="wc-row"><span class="wc-k">Land Cover</span><span class="wc-v" id="wc_lc">—</span></div>
       <div class="wc-row"><span class="wc-k">Soil (0–1 m)</span><span class="wc-v" id="wc_soil">—</span></div>
+      <div class="wc-row"><span class="wc-k">Model units</span><span class="wc-v" id="wc_sub">—</span></div>
       <div class="wc-row"><span class="wc-k">CN2 (a-priori)</span><span class="wc-v" id="wc_cn2">—</span></div>
       <div class="wc-row"><span class="wc-k">SOL_AWC</span><span class="wc-v" id="wc_awc">—</span></div>
     </div>
@@ -1392,22 +1417,22 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:10px;heigh
   <div class="ss">🌡<b id="sb_t">—</b></div>
   <div class="ss">🏔<b id="sb_e">—</b></div>
   <div class="ss">📊<b id="sb_d">—</b></div>
-  <div class="ss" style="margin-left:auto">HydroGlobal v3 · © 2026 Timothy O. Randhir · All rights reserved</div>
+  <div class="ss" style="margin-left:auto">HydroGlobal v4 · © 2026 Timothy O. Randhir · All rights reserved</div>
 </div>
 <div class="toast" id="toast"></div>
 
 <script>
 'use strict';
 // ═══════════════════════════════════════════════════════════════════════
-//  HydroGlobal v3
+//  HydroGlobal v4
 //  Client-side watershed simulation for any basin:
-//    1. Delineation   → MERIT-Hydro / HydroSHEDS (Global Watersheds API)
+//    1. Delineation   → MERIT-Hydro / MERIT-Basins sub-basins (Global Watersheds API)
 //    2. Climate       → ERA5 reanalysis (Open-Meteo archive API)
 //    3. Terrain       → Copernicus GLO-90 DEM (Open-Meteo elevation API)
 //    4. Soil          → ISRIC SoilGrids v2
 //    5. Land cover    → MODIS MCD12Q1 (ORNL DAAC)
 //    6. Discharge     → USGS NWIS daily values, user CSV, or a synthetic reference
-//    7. Engine        → daily SWAT-type water balance with elevation-band snow
+//    7. Engine        → semi-distributed SWAT-type daily water balance (sub-basins, HRUs, reach routing)
 //    8. Calibration   → DDS, particle swarm, or GLUE; split-sample validation
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -2487,8 +2512,9 @@ function setObserved(o) {
 //  target, not an observation: skill scores against it say nothing about
 //  real-world accuracy.
 // ─────────────────────────────────────────────
-function budykoReference(climate, wsData, opts) {
-  const base = runSWAT(climate, wsData, wsData, opts);
+function budykoReference(climate, wsData, opts, sim) {
+  sim = sim || (p => runSWAT(climate, p, wsData, opts));
+  const base = sim(Object.assign({}, wsData, S.params || {}));
   const annP = base.massBalance.P_mm;
   let annPET = 0; for (let i = 0; i < base.PET.length; i++) annPET += base.PET[i];
   annPET /= Math.max(1, base.PET.length / 365.25);
@@ -2497,16 +2523,17 @@ function budykoReference(climate, wsData, opts) {
   const targetQmm = annP * Math.max(0.01, 1 - Math.min(0.99, aetFrac));
   const rng = seededRng(annP * wsData.areaKm2 + 7);
   const truth = {};
-  PARAM_DEFS.forEach(d => { truth[d.k] = clampP(d.k, wsData[d.k] + (rng()*2 - 1) * 0.25 * (d.max - d.min) * 0.5); });
+  const centre = Object.assign({}, wsData, S.params || {});
+  PARAM_DEFS.forEach(d => { truth[d.k] = clampP(d.k, centre[d.k] + (rng()*2 - 1) * 0.25 * (d.max - d.min) * 0.5); });
   truth.dp_loss = 0;
-  const run = runSWAT(climate, truth, wsData, opts);
+  const run = sim(truth);
   const k = targetQmm / Math.max(1e-6, run.massBalance.Q_mm);
   return { flow: run.flow.map(q => +Math.max(0.0001, q * k * (1 + 0.08*(rng()*2 - 1))).toFixed(4)),
            kind: 'reference', source: 'Budyko–Fu synthetic reference', short: 'Budyko reference', coverage: 1, targetQmm };
 }
 
 // ─────────────────────────────────────────────
-//  HYDROLOGICAL ENGINE v3 (SWAT-type daily water balance)
+//  HYDROLOGICAL ENGINE v4 (SWAT-type daily water balance)
 //  Lumped soil/groundwater with elevation-band snow. All fluxes in mm/day
 //  over the basin; discharge converted to m³/s with the delineated area.
 //  Mass balance is closed on the ROUTED outflow, including channel storage.
@@ -2751,6 +2778,12 @@ function runSWAT(climate, params, wsData, opts) {
   for (let i = 0; i < n; i++) step(i, true);
   const dStore = store() - s0;
 
+  const raw = { P: mbP, ET: mbET, Q: mbQ, loss: mbLoss, dS: dStore, rech: mbRech, surf: mbSurf, lat: mbLat, bf: mbBf, snow: mbSnow, n };
+  if (opts.lite) {                       // HRU runs of the semi-distributed model: depths only (mm/day)
+    let pet = 0; for (let i = 0; i < n; i++) pet += petA[i];
+    raw.PET = pet;
+    return { flow_mm, et, gw, sw: swA, swe, sed, sfQ, ltQ, bfQ, PET: petA, raw, nBands: nb };
+  }
   const scale = areaKm2 * 1000 / 86400;
   const toQ = a => { const o = new Array(n); for (let i = 0; i < n; i++) o[i] = Math.round(a[i]*scale*1000)/1000; return o; };
   const yrs = Math.max(1, n/365.25);
@@ -2761,12 +2794,986 @@ function runSWAT(climate, params, wsData, opts) {
     surfQ_mm: +(mbSurf/yrs).toFixed(1), latQ_mm: +(mbLat/yrs).toFixed(1), baseQ_mm: +(mbBf/yrs).toFixed(1),
     snow_mm: +(mbSnow/yrs).toFixed(1),
     runoffCoeff: +(mbQ/(mbP+1e-6)).toFixed(3), etFraction: +(mbET/(mbP+1e-6)).toFixed(3),
-    closureErr: +((residual/(mbP+1e-6))*100).toFixed(3),
+    closureErr: +((residual/(mbP+1e-6))*100).toFixed(3), _raw: raw,
   };
   return { flow: toQ(flow_mm), flow_mm, et, gw, sw: swA, sed, swe,
            sfQ: toQ(sfQ), ltQ: toQ(ltQ), bfQ: toQ(bfQ),
            P: F.P, Tx: d.temperature_2m_max || [], Tn: d.temperature_2m_min || [], PET: petA,
            dates: d.time || [], areaKm2, scale, massBalance, nBands: nb };
+}
+
+// ─────────────────────────────────────────────
+//  SEMI-DISTRIBUTED ENGINE
+//  Each sub-basin has its own forcing, elevation bands, soil and land cover.
+//  Within a sub-basin, hydrologic response units (HRUs) are the land-cover
+//  classes that cover at least 10% of it (the SWAT threshold approach). The
+//  vertical water balance of every HRU is computed by runSWAT with the
+//  sub-basin's forcing, terrain and soil and the HRU's own curve number,
+//  rooting depth, canopy storage and evaporation threshold. HRU yields,
+//  already lagged through the sub-basin's own surface-lag store and tributary
+//  channel, are summed into the sub-basin outflow; outflows are then routed
+//  downstream through each receiving sub-basin's main channel by two linear
+//  reservoirs in series with a total storage time of channel length divided by
+//  a reference velocity of 1 m/s, scaled by CH_K.
+//
+//  Calibration keeps the spatial pattern: the curve number, available water
+//  capacity, saturated conductivity and ESCO of every HRU are multiplied by a
+//  common factor so that their area-weighted mean equals the calibrated
+//  basin value. All other parameters are basin-wide.
+// ─────────────────────────────────────────────
+const SPATIAL_KEYS = ['cn2', 'sol_awc', 'sol_k', 'esco'];
+const SPATIAL_BOUNDS = { cn2: [30, 98], sol_awc: [0.02, 0.5], sol_k: [0.05, 200], esco: [0.05, 1] };
+const REACH_VELOCITY = 1.0;                       // m/s, reference flow velocity in main channels
+
+function hruParams(P, hru, apriori) {
+  const p = Object.assign({}, P);
+  for (const k of SPATIAL_KEYS) {
+    const ref = apriori[k], b = SPATIAL_BOUNDS[k];
+    const f = (P[k] != null && isFinite(P[k]) && ref > 0) ? P[k] / ref : 1;
+    p[k] = Math.max(b[0], Math.min(b[1], hru.ap[k] * f));
+  }
+  p.coverFact = hru.coverFact != null ? hru.coverFact : P.coverFact;
+  return p;
+}
+
+// Area-weighted a-priori means of the spatially distributed parameters
+function modelApriori(model) {
+  const out = {}, A = model.subs.reduce((s, x) => s + x.areaKm2, 0);
+  for (const k of SPATIAL_KEYS) {
+    let v = 0; for (const s of model.subs) for (const h of s.hrus) v += h.ap[k] * h.frac * s.areaKm2;
+    out[k] = v / A;
+  }
+  return out;
+}
+
+// Two linear reservoirs in series, integrated exactly over the day (as in runSWAT).
+function routeReach(inflow, Kdays) {
+  const n = inflow.length, out = new Float64Array(n);
+  if (!(Kdays > 0.01)) { out.set(inflow); return { out, s0: 0, s1: 0 }; }
+  const K = Kdays / 2, e = Math.exp(-1 / K);
+  let m = 0; const nm = Math.min(n, 365); for (let i = 0; i < nm; i++) m += inflow[i]; m /= Math.max(1, nm);
+  let c1 = m * K, c2 = m * K; const s0 = c1 + c2;
+  for (let i = 0; i < n; i++) {
+    const q = inflow[i];
+    const e1 = c1 * e + q * K * (1 - e), o1 = c1 + q - e1; c1 = e1;
+    const e2 = c2 * e + o1 * K * (1 - e), o2 = c2 + o1 - e2; c2 = e2;
+    out[i] = o2;
+  }
+  return { out, s0, s1: c1 + c2 };
+}
+
+function runSWATDist(model, params, opts, climFor) {
+  opts = opts || (typeof engineOptions === 'function' ? engineOptions() : {});
+  const p = Object.assign({}, ENGINE_DEFAULTS, params);
+  const subs = model.subs, nS = subs.length;
+  const n = subs[0].climate.daily.time.length;
+  const Atot = subs.reduce((s, x) => s + x.areaKm2, 0);
+  const apri = model.apriori || (model.apriori = modelApriori(model));
+  const local = subs.map(() => new Float64Array(n));
+  const et = new Float64Array(n), gw = new Float64Array(n), sw = new Float64Array(n), swe = new Float64Array(n), sed = new Float64Array(n),
+        sfQ = new Float64Array(n), ltQ = new Float64Array(n), bfQ = new Float64Array(n), PET = new Float64Array(n), Pb = new Float64Array(n),
+        Tx = new Float64Array(n), Tn = new Float64Array(n);
+  const tot = { P: 0, ET: 0, Q: 0, loss: 0, dS: 0, rech: 0, surf: 0, lat: 0, bf: 0, snow: 0, PET: 0 };   // km²·mm
+  const subOut = [], hruOut = [];
+  let nb = 1;
+  for (let k = 0; k < nS; k++) {
+    const s = subs[k], clim = climFor ? climFor(s, k) : s.climate, sc = s.areaKm2 * 1000 / 86400;
+    const st = { P: 0, ET: 0, Q: 0, loss: 0, dS: 0, rech: 0, surf: 0, lat: 0, bf: 0, snow: 0, PET: 0 };
+    for (const h of s.hrus) {
+      const r = runSWAT(clim, hruParams(p, h, apri), h.ws, Object.assign({}, opts, { lite: true }));
+      const w = h.frac, A = w * s.areaKm2, wa = A / Atot;
+      nb = Math.max(nb, r.nBands);
+      const L = local[k];
+      for (let i = 0; i < n; i++) {
+        L[i] += r.flow_mm[i] * w * sc;
+        et[i] += r.et[i] * wa; gw[i] += r.gw[i] * wa; sw[i] += r.sw[i] * wa; swe[i] += r.swe[i] * wa; sed[i] += r.sed[i] * wa;
+        sfQ[i] += r.sfQ[i] * w * sc; ltQ[i] += r.ltQ[i] * w * sc; bfQ[i] += r.bfQ[i] * w * sc; PET[i] += r.PET[i] * wa;
+      }
+      for (const key in st) st[key] += (r.raw[key] || 0) * w;
+      hruOut.push({ sub: k, lc: h.lcCode, name: h.name, frac: w, areaKm2: A, cn2: hruParams(p, h, apri).cn2,
+                    P: r.raw.P, ET: r.raw.ET, Q: r.raw.Q, surf: r.raw.surf, lat: r.raw.lat, bf: r.raw.bf, rech: r.raw.rech, snow: r.raw.snow, PET: r.raw.PET });
+    }
+    const pre = prepareForcing(clim, s.lat, opts.etMeth || 'fao');
+    const d = clim.daily, wa = s.areaKm2 / Atot;
+    for (let i = 0; i < n; i++) {
+      Pb[i] += pre.P[i] * wa;
+      Tx[i] += (d.temperature_2m_max[i] != null ? d.temperature_2m_max[i] : pre.Tx[i]) * wa;
+      Tn[i] += (d.temperature_2m_min[i] != null ? d.temperature_2m_min[i] : pre.Tm[i] * 2 - pre.Tx[i]) * wa;
+    }
+    for (const key in tot) tot[key] += st[key] * s.areaKm2;
+    subOut.push(st);
+  }
+  // routing through the sub-basin network, upstream first
+  const out = new Array(nS); let dSreach = 0;                  // reach storage change, (m³/s)·day
+  for (const k of model.topo) {
+    const s = subs[k], acc = new Float64Array(n);
+    if (s.ups.length) {
+      const inflow = new Float64Array(n);
+      for (const u of s.ups) { const o = out[u]; for (let i = 0; i < n; i++) inflow[i] += o[i]; }
+      const Kd = (s.reachLenKm || 0) * 1000 / REACH_VELOCITY / 86400 * Math.max(0.05, p.ch_k);
+      const rr = routeReach(inflow, Kd);
+      dSreach += rr.s1 - rr.s0;
+      acc.set(rr.out);
+    }
+    const L = local[k]; for (let i = 0; i < n; i++) acc[i] += L[i];
+    out[k] = acc;
+  }
+  const Q = out[model.root], scaleTot = Atot * 1000 / 86400;
+  const yrs = Math.max(1, n / 365.25), toMm = v => v / Atot;
+  const flow = new Array(n), flow_mm = new Float64Array(n);
+  let qSum = 0;
+  for (let i = 0; i < n; i++) { flow[i] = Math.round(Q[i] * 1000) / 1000; flow_mm[i] = Q[i] / scaleTot; qSum += flow_mm[i]; }
+  const dSreachMm = dSreach / scaleTot;
+  const residual = toMm(tot.P) - toMm(tot.ET) - qSum - toMm(tot.loss) - (toMm(tot.dS) + dSreachMm);
+  const P_mm = toMm(tot.P);
+  const massBalance = {
+    P_mm: +(P_mm / yrs).toFixed(1), ET_mm: +(toMm(tot.ET) / yrs).toFixed(1), Q_mm: +(qSum / yrs).toFixed(1),
+    recharge_mm: +(toMm(tot.rech) / yrs).toFixed(1), deepLoss_mm: +(toMm(tot.loss) / yrs).toFixed(1),
+    dStore_mm: +((toMm(tot.dS) + dSreachMm) / yrs).toFixed(1),
+    surfQ_mm: +(toMm(tot.surf) / yrs).toFixed(1), latQ_mm: +(toMm(tot.lat) / yrs).toFixed(1), baseQ_mm: +(toMm(tot.bf) / yrs).toFixed(1),
+    snow_mm: +(toMm(tot.snow) / yrs).toFixed(1),
+    runoffCoeff: +(qSum / (P_mm + 1e-6)).toFixed(3), etFraction: +(toMm(tot.ET) / (P_mm + 1e-6)).toFixed(3),
+    closureErr: +((residual / (P_mm + 1e-6)) * 100).toFixed(3),
+  };
+  const r3 = a => { const o = new Array(n); for (let i = 0; i < n; i++) o[i] = Math.round(a[i] * 1000) / 1000; return o; };
+  const sub = subs.map((s, k) => {
+    const st = subOut[k], qOut = out[k];
+    let qo = 0; for (let i = 0; i < n; i++) qo += qOut[i];
+    return { id: s.id, areaKm2: s.areaKm2, totalKm2: s.totalKm2, down: s.down,
+             P_mm: st.P / yrs, ET_mm: st.ET / yrs, Q_mm: st.Q / yrs, PET_mm: st.PET / yrs, surf_mm: st.surf / yrs, lat_mm: st.lat / yrs,
+             base_mm: st.bf / yrs, snow_mm: st.snow / yrs, rech_mm: st.rech / yrs, loss_mm: st.loss / yrs,
+             runoffCoeff: st.Q / Math.max(1e-6, st.P), meanOutflow: qo / n, outflow: qOut, local: local[k] };
+  });
+  hruOut.forEach(h => { for (const key of ['P', 'ET', 'Q', 'surf', 'lat', 'bf', 'rech', 'snow', 'PET']) h[key] = h[key] / yrs; });
+  return { flow, flow_mm, et, gw, sw, sed, swe, sfQ: r3(sfQ), ltQ: r3(ltQ), bfQ: r3(bfQ),
+           P: Pb, Tx: Array.from(Tx), Tn: Array.from(Tn), PET, dates: subs[0].climate.daily.time, areaKm2: Atot, scale: scaleTot,
+           massBalance, nBands: nb, spatial: true, sub, hru: hruOut, reachStoreChange_mm: dSreachMm / yrs };
+}
+
+// ─────────────────────────────────────────────
+//  SUB-BASIN DELINEATION FROM EXISTING BOUNDARIES
+//  Sub-basins are unions of MERIT-Basins unit catchments (Lin et al. 2019),
+//  the vector catchments that the Global Watersheds service builds every
+//  watershed from. The MERIT-Hydro river network upstream of the outlet is
+//  pruned by Strahler order until the number of stream links fits the chosen
+//  detail; each link outlet is delineated with the same service (vector mode,
+//  so nested watersheds share boundaries exactly), and each sub-basin is its
+//  watershed minus the watersheds of the links that drain into it.
+// ─────────────────────────────────────────────
+const SUB_DETAIL = { coarse: 8, medium: 16, fine: 30 };
+
+function havKm(a, b) {                          // [lon, lat] pairs → great-circle km
+  const R = 6371.0088, r = Math.PI / 180;
+  const dLa = (b[1] - a[1]) * r, dLo = (b[0] - a[0]) * r;
+  const h = Math.sin(dLa / 2) ** 2 + Math.cos(a[1] * r) * Math.cos(b[1] * r) * Math.sin(dLo / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+async function fetchRiverNetwork(lat, lon, areaKm2) {
+  const url = `https://mghydro.com/app/upstream_rivers_api?lat=${lat}&lng=${lon}&precision=high` + (areaKm2 > 50000 ? '&simplify=true' : '');
+  return fetchJSON(url, 90000);
+}
+
+// River reaches arrive digitised from the downstream end; they are re-oriented
+// upstream → downstream and linked where one reach's downstream end is
+// another's upstream end.
+function buildRiverNetwork(gj, outLat, outLon) {
+  const R = [];
+  for (const f of (gj && gj.features) || []) {
+    const g = f.geometry; if (!g) continue;
+    const parts = g.type === 'LineString' ? [g.coordinates] : g.type === 'MultiLineString' ? g.coordinates : [];
+    const c = [].concat(...parts.filter(p => p && p.length));
+    if (c.length >= 2) R.push({ c, order: +(f.properties && (f.properties.sorder || f.properties.order)) || 1, comid: f.properties && f.properties.comid });
+  }
+  if (!R.length) return null;
+  const key = p => Math.round(p[0] * 1e4) + ',' + Math.round(p[1] * 1e4);
+  const firsts = new Map(), lasts = new Map();
+  R.forEach((r, i) => { firsts.set(key(r.c[0]), i); lasts.set(key(r.c[r.c.length - 1]), i); });
+  let a = 0, b = 0;
+  R.forEach(r => { if (lasts.has(key(r.c[0]))) a++; if (firsts.has(key(r.c[r.c.length - 1]))) b++; });
+  const reversed = a >= b;                       // first vertex is the downstream end
+  if (reversed) R.forEach(r => r.c.reverse());
+  const upEnd = new Map();
+  R.forEach((r, i) => { const k = key(r.c[0]); if (!upEnd.has(k)) upEnd.set(k, []); upEnd.get(k).push(i); });
+  // tolerant lookup for ends that do not coincide exactly (0.01° hash cells)
+  const cell = p => Math.floor(p[0] * 100) + ',' + Math.floor(p[1] * 100), grid = new Map();
+  R.forEach((r, i) => { const k = cell(r.c[0]); if (!grid.has(k)) grid.set(k, []); grid.get(k).push(i); });
+  R.forEach((r, i) => {
+    r.lenKm = 0; for (let k = 1; k < r.c.length; k++) r.lenKm += havKm(r.c[k - 1], r.c[k]);
+    const end = r.c[r.c.length - 1];
+    let cand = (upEnd.get(key(end)) || []).filter(j => j !== i);
+    if (!cand.length) {
+      const cx = Math.floor(end[0] * 100), cy = Math.floor(end[1] * 100); let best = null, bd = 0.004;
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (const j of grid.get((cx + dx) + ',' + (cy + dy)) || []) {
+        if (j === i) continue; const d = Math.hypot(R[j].c[0][0] - end[0], R[j].c[0][1] - end[1]); if (d < bd) { bd = d; best = j; }
+      }
+      if (best != null) cand = [best];
+    }
+    r.down = cand.length ? cand.sort((p, q) => R[q].order - R[p].order)[0] : -1;
+  });
+  R.forEach(r => { r.ups = []; });
+  R.forEach((r, i) => { if (r.down >= 0) R[r.down].ups.push(i); });
+  // guard against cycles from tolerant matching
+  R.forEach((r, i) => { let j = r.down, k = 0; while (j >= 0 && k++ < R.length) { if (j === i) { r.down = -1; break; } j = R[j].down; } });
+  const roots = R.map((r, i) => r.down < 0 ? i : -1).filter(i => i >= 0);
+  let main = roots[0], bd = Infinity;
+  for (const i of roots) { const e = R[i].c[R[i].c.length - 1]; const d = Math.hypot(e[0] - outLon, e[1] - outLat); if (d < bd) { bd = d; main = i; } }
+  return { R, roots, main, reversed, maxOrder: Math.max(...R.map(r => r.order)) };
+}
+
+// Choose sub-basin outlets with a drainage threshold, as ArcSWAT and QSWAT do:
+// a reach belongs to the stream network when its upstream channel length (a
+// proxy for drainage area that also works on the simplified network of large
+// basins) reaches a threshold, and every confluence of two network branches
+// starts a new stream link. The threshold is the smallest that gives at most
+// maxSub links.
+function partitionNetwork(net, maxSub) {
+  const R = net.R, n = R.length;
+  const post = [], seen = new Uint8Array(n);
+  for (const r0 of net.roots) {
+    seen[r0] = 1; const st = [[r0, 0]];
+    while (st.length) { const top = st[st.length - 1], j = top[0];
+      if (top[1] < R[j].ups.length) { const u = R[j].ups[top[1]++]; if (!seen[u]) { seen[u] = 1; st.push([u, 0]); } }
+      else { post.push(j); st.pop(); } }
+  }
+  const U = new Float64Array(n);
+  for (const i of post) { let s = R[i].lenKm; for (const u of R[i].ups) s += U[u]; U[i] = s; }
+  const isOutFor = T => R.map((r, i) => U[i] >= T && (r.down < 0 ? i === net.main : R[r.down].ups.filter(u => U[u] >= T).length >= 2));
+  const countFor = T => isOutFor(T).filter(Boolean).length;
+  const cand = Array.from(new Set(Array.from(U))).sort((a, b) => a - b);
+  let lo = 0, hi = cand.length - 1;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (countFor(cand[mid]) <= maxSub) hi = mid; else lo = mid + 1; }
+  const T = cand[lo], isOut = isOutFor(T), inP = Array.from(U, u => u >= T);
+  const links = [], linkOf = new Map();
+  R.forEach((r, i) => { if (isOut[i]) { linkOf.set(i, links.length); links.push({ outReach: i }); } });
+  for (const L of links) {
+    let i = L.outReach, len = 0; const path = [];
+    for (let guard = 0; guard < n; guard++) {
+      path.push(i); len += R[i].lenKm;
+      const ups = R[i].ups.filter(u => inP[u]);
+      if (ups.length !== 1 || isOut[ups[0]]) break;
+      i = ups[0];
+    }
+    L.reaches = path; L.reachLenKm = len; L.order = R[L.outReach].order; L.upLenKm = U[L.outReach];
+    let d = R[L.outReach].down, g = 0;
+    while (d >= 0 && !isOut[d] && g++ < n) d = R[d].down;
+    L.down = d >= 0 ? linkOf.get(d) : -1;
+    const c = R[L.outReach].c, k = Math.max(0, Math.min(c.length - 1, Math.floor((c.length - 1) * 0.5)));
+    L.pt = c.length > 2 ? c[k] : [(c[0][0] + c[1][0]) / 2, (c[0][1] + c[1][1]) / 2];
+  }
+  const rootLink = linkOf.get(net.main);
+  links.forEach((L, k) => { if (L.down < 0 && k !== rootLink) L.down = rootLink; });
+  return { T, links, rootLink, inP };
+}
+
+async function delineateSubbasins(basin, outLat, outLon, maxSub, progress) {
+  progress = progress || (() => {});
+  if (!basin || !basin.polygon || !basin.realData) return { ok: false, why: 'no delineated basin polygon' };
+  progress('Sub-basins: retrieving the MERIT-Hydro river network…');
+  let gj; try { gj = await fetchRiverNetwork(outLat, outLon, basin.areaKm2); } catch (e) { return { ok: false, why: 'river network unavailable (' + e.message + ')' }; }
+  const net = buildRiverNetwork(gj, outLat, outLon);
+  if (!net || net.R.length < 3) return { ok: false, why: 'river network too small to subdivide' };
+  if (basin.areaKm2 > 200000) maxSub = Math.min(maxSub, 16);
+  const part = partitionNetwork(net, Math.round(maxSub * 1.4));
+  const links = part.links;
+  if (links.length < 2) return { ok: false, why: 'single stream link at this detail', net };
+  // nested watersheds at each link outlet (vector mode: unions of unit catchments)
+  const todo = links.map((L, k) => k).filter(k => k !== part.rootLink);
+  let done = 0; const t0 = Date.now(), budgetMs = 150000;
+  const one = async k => {
+    const L = links[k];
+    if (Date.now() - t0 > budgetMs) { L.fail = 'time budget'; return; }
+    try {
+      const j = await fetchJSON(`https://mghydro.com/app/watershed_api?lat=${L.pt[1].toFixed(5)}&lng=${L.pt[0].toFixed(5)}&precision=low`, 60000);
+      const f = j.features && j.features[0];
+      if (!f || !f.geometry || !f.geometry.coordinates || !f.geometry.coordinates.length) throw new Error('empty');
+      L.geom = f.geometry; L.totalKm2 = polygonAreaKm2(f.geometry);
+    } catch (e) { L.fail = e.message; }
+    done++; progress(`Sub-basins: delineating link outlets ${done}/${todo.length}…`);
+  };
+  for (let i = 0; i < todo.length; i += 3) await Promise.all(todo.slice(i, i + 3).map(one));
+  // the basin outline is taken from the same unit catchments (vector mode), so the
+  // outer boundary and every internal boundary coincide; the point delineation
+  // differs from it only inside the outlet unit catchment
+  const root = links[part.rootLink];
+  let vecRoot = null;
+  try {
+    const j = await fetchJSON(`https://mghydro.com/app/watershed_api?lat=${outLat}&lng=${outLon}&precision=low`, 90000);
+    const f = j.features && j.features[0];
+    if (f && f.geometry && f.geometry.coordinates && f.geometry.coordinates.length) vecRoot = f.geometry;
+  } catch (e) {}
+  root.geom = vecRoot || basin.polygon; root.totalKm2 = vecRoot ? polygonAreaKm2(vecRoot) : basin.areaKm2;
+  const totalA = root.totalKm2;
+  // validate nesting; failed or inconsistent links merge into their downstream link
+  const alive = links.map(L => !L.fail && L.totalKm2 > 0);
+  const parentOf = k => { let d = links[k].down; while (d >= 0 && !alive[d]) d = links[d].down; return d < 0 ? part.rootLink : d; };
+  let changed = true;
+  while (changed) {
+    changed = false;
+    links.forEach((L, k) => {
+      if (k === part.rootLink || !alive[k]) return;
+      const p = parentOf(k);
+      if (!(L.totalKm2 < links[p].totalKm2 * 0.995) || L.totalKm2 < totalA * 0.004) { alive[k] = false; L.fail = L.fail || 'not nested'; changed = true; }
+    });
+    // sub-basins whose own area is under 1.5% of the basin merge into the sub-basin below
+    links.forEach((L, k) => {
+      if (k === part.rootLink || !alive[k]) return;
+      const kids = links.map((c, j) => j).filter(j => alive[j] && j !== part.rootLink && parentOf(j) === k);
+      const local = L.totalKm2 - kids.reduce((s, j) => s + links[j].totalKm2, 0);
+      if (local < totalA * 0.015) { alive[k] = false; L.fail = 'merged (small)'; changed = true; }
+    });
+    // children of a link must not exceed its area
+    links.forEach((L, k) => {
+      if (!alive[k]) return;
+      const kids = links.map((c, j) => j).filter(j => alive[j] && j !== part.rootLink && parentOf(j) === k);
+      const sum = kids.reduce((s, j) => s + links[j].totalKm2, 0);
+      if (sum > L.totalKm2 * 1.002 && kids.length) { const j = kids.sort((x, y) => links[y].totalKm2 - links[x].totalKm2)[0]; alive[j] = false; links[j].fail = 'overlap'; changed = true; }
+    });
+  }
+  // still too many: merge the smallest sub-basins into the ones below them
+  for (let guard = 0; guard < links.length; guard++) {
+    const live = links.map((L, k) => k).filter(k => alive[k]);
+    if (live.length <= maxSub) break;
+    let worst = -1, wa = Infinity;
+    for (const k of live) {
+      if (k === part.rootLink) continue;
+      const kids = live.filter(j => j !== part.rootLink && parentOf(j) === k);
+      const local = links[k].totalKm2 - kids.reduce((s, j) => s + links[j].totalKm2, 0);
+      if (local < wa) { wa = local; worst = k; }
+    }
+    if (worst < 0) break;
+    alive[worst] = false; links[worst].fail = 'merged (detail)';
+  }
+  const keep = links.map((L, k) => k).filter(k => alive[k]);
+  if (keep.length < 2) return { ok: false, why: 'nested delineations failed', net };
+  const idx = new Map(keep.map((k, i) => [k, i]));
+  const subs = keep.map(k => {
+    const L = links[k], p = k === part.rootLink ? -1 : parentOf(k);
+    // channel length of links merged into this one is added to its reach
+    const extra = links.reduce((s, D, j) => s + (!alive[j] && j !== part.rootLink && parentOf(j) === k ? D.reachLenKm : 0), 0);
+    return { link: k, down: p < 0 ? -1 : idx.get(p), totalKm2: L.totalKm2, geom: L.geom, reachLenKm: L.reachLenKm + extra, order: L.order, pt: L.pt, reaches: L.reaches };
+  });
+  subs.forEach(s => { s.ups = []; });
+  subs.forEach((s, i) => { if (s.down >= 0) subs[s.down].ups.push(i); });
+  subs.forEach(s => { s.areaKm2 = s.totalKm2 - s.ups.reduce((a, u) => a + subs[u].totalKm2, 0); s.rawLocal = s.areaKm2; });
+  // tiny residual areas from boundary noise are clamped and the outlet sub-basin absorbs the difference
+  const minA = totalA * 0.002;
+  subs.forEach(s => { if (s.areaKm2 < minA) s.areaKm2 = minA; });
+  const sumA = subs.reduce((a, s) => a + s.areaKm2, 0), rootIdx = idx.get(part.rootLink);
+  subs[rootIdx].areaKm2 = Math.max(minA, subs[rootIdx].areaKm2 + (totalA - sumA));
+  // sub-basin polygons: own watershed with upstream watersheds as holes
+  const polysOf = g => g.type === 'MultiPolygon' ? g.coordinates : [g.coordinates];
+  subs.forEach(s => {
+    const parts = polysOf(s.geom).map(p => [p[0]]);
+    for (const u of s.ups) for (const up of polysOf(subs[u].geom)) {
+      const ring = up[0], v = ring[0];
+      let host = parts.findIndex(pp => pointInRing(v[0], v[1], pp[0]));
+      if (host < 0) host = 0;
+      parts[host].push(ring);
+    }
+    s.polygon = { type: 'MultiPolygon', coordinates: parts };
+    s.bbox = getBbox(polysOf(s.geom).map(p => p[0]));
+  });
+  // topological order: upstream first (child watersheds are always smaller)
+  const topo = subs.map((s, i) => i).sort((a, b) => subs[a].totalKm2 - subs[b].totalKm2);
+  // number sub-basins downstream → upstream along the network (outlet = 1)
+  const num = new Array(subs.length); let c = 1;
+  const visit = i => { num[i] = c++; subs[i].ups.slice().sort((a, b) => subs[b].totalKm2 - subs[a].totalKm2).forEach(visit); };
+  visit(rootIdx);
+  const order = subs.map((s, i) => i).sort((a, b) => num[a] - num[b]);
+  const renum = new Map(order.map((i, k) => [i, k]));
+  const out = order.map(i => Object.assign({}, subs[i], { id: renum.get(i) + 1, down: subs[i].down < 0 ? -1 : renum.get(subs[i].down), ups: subs[i].ups.map(u => renum.get(u)) }));
+  const topoR = topo.map(i => renum.get(i));
+  const rivers = net.R.filter((r, i) => part.inP[i]).map(r => ({ c: r.c, order: r.order }));
+  return { ok: true, subs: out, topo: topoR, root: 0, basinGeom: root.geom, basinKm2: totalA, vectorOutline: !!vecRoot, pointKm2: basin.areaKm2, thresholdKm: part.T, nLinks: links.length, nMerged: links.length - keep.length, fails: links.filter(L => L.fail).map(L => L.fail), nReach: net.R.length,
+           rivers, allRivers: net.R.map(r => ({ c: r.c, order: r.order })), maxOrder: net.maxOrder, source: 'MERIT-Basins unit catchments via Global Watersheds' };
+}
+
+// Assign a point to the smallest nested watershed that contains it.
+function subOfPoint(lon, lat, model) {
+  let best = -1, bestA = Infinity;
+  for (let i = 0; i < model.subs.length; i++) {
+    const s = model.subs[i];
+    if (s.totalKm2 >= bestA) continue;
+    const b = s.bbox; if (b && (lon < b.minLon || lon > b.maxLon || lat < b.minLat || lat > b.maxLat)) continue;
+    if (pointInGeometry(lon, lat, s.geom)) { best = i; bestA = s.totalKm2; }
+  }
+  return best;
+}
+
+// Sample points inside the basin, assigned to sub-basins; small sub-basins are densified.
+function subbasinSamplePoints(model, basin, perSub) {
+  const nTarget = Math.max(150, Math.min(1200, perSub * model.subs.length));
+  const pts = basinGridPoints(0, 0, basin.bbox, basin.polygon, nTarget).filter(p => p.lat != null);
+  const out = [];
+  for (const p of pts) { const s = subOfPoint(p.lon, p.lat, model); if (s >= 0) out.push({ lat: p.lat, lon: p.lon, sub: s }); }
+  const minPts = Math.max(6, Math.min(12, Math.floor(perSub / 2)));
+  model.subs.forEach((s, i) => {
+    let have = out.filter(p => p.sub === i).length;
+    for (let g = 4; have < minPts && g <= 22; g += 3) {
+      const b = s.bbox, dLa = b.maxLat - b.minLat, dLo = b.maxLon - b.minLon;
+      for (let r = 0; r < g && have < minPts * 2; r++) for (let c = 0; c < g && have < minPts * 2; c++) {
+        const la = b.minLat + (r + 0.37) * dLa / g, lo = b.minLon + (c + 0.61) * dLo / g;
+        if (pointInGeometry(lo, la, s.polygon) && subOfPoint(lo, la, model) === i) { out.push({ lat: +la.toFixed(4), lon: +lo.toFixed(4), sub: i, dense: true }); have++; }
+      }
+    }
+  });
+  model.subs.forEach((s, i) => {
+    const mine = out.filter(p => p.sub === i);
+    if (!mine.length) { s.labelPt = [s.pt[0], s.pt[1]]; return; }
+    const cx = mean(mine.map(p => p.lon)), cy = mean(mine.map(p => p.lat));
+    let best = mine[0], bd = Infinity; for (const p of mine) { const d = Math.hypot(p.lon - cx, p.lat - cy); if (d < bd) { bd = d; best = p; } }
+    s.labelPt = [best.lon, best.lat]; s.centroid = [cx, cy]; s.nPts = mine.length;
+  });
+  return out;
+}
+
+// ─────────────────────────────────────────────
+//  SPATIAL DATA FOR SUB-BASINS
+//  One set of requests serves both model structures: per-sub-basin climate,
+//  terrain, soil and land cover, and their area-weighted basin averages for
+//  the lumped model.
+// ─────────────────────────────────────────────
+const SOIL_PROPS = ['clay', 'sand', 'soc', 'bdod', 'wv0033', 'wv1500'];
+const SOIL_DEPTHS = ['0-5cm', '5-15cm', '15-30cm', '30-60cm', '60-100cm'];
+const ERA5_VARS = ['precipitation_sum', 'temperature_2m_max', 'temperature_2m_min', 'et0_fao_evapotranspiration', 'shortwave_radiation_sum'];
+const OPEN_METEO_BUDGET = 560;              // weighted calls per load; the free tier allows 600 per minute
+
+async function pool(items, k, fn) {
+  const out = new Array(items.length); let next = 0;
+  await Promise.all(Array.from({ length: Math.min(k, items.length) }, async () => {
+    while (next < items.length) { const i = next++; try { out[i] = await fn(items[i], i); } catch (e) { out[i] = null; } }
+  }));
+  return out;
+}
+
+// ── GeoTIFF (single band, Int16/UInt16/Int32/Float32; none or DEFLATE; predictor 1–2) ──
+async function decodeGeoTiff(buf) {
+  const b = new Uint8Array(buf), dv = new DataView(buf), le = b[0] === 0x49;
+  const u16 = o => dv.getUint16(o, le), u32 = o => dv.getUint32(o, le);
+  if (u16(2) !== 42) throw new Error('not a TIFF');
+  const ifd = u32(4), n = u16(ifd), T = {}, size = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 11: 4, 12: 8, 16: 8 };
+  for (let i = 0; i < n; i++) {
+    const e = ifd + 2 + i * 12, tag = u16(e), type = u16(e + 2), cnt = u32(e + 4), sz = (size[type] || 1) * cnt, off = sz <= 4 ? e + 8 : u32(e + 8), v = [];
+    for (let k = 0; k < cnt; k++) {
+      if (type === 3) v.push(u16(off + 2 * k)); else if (type === 4) v.push(u32(off + 4 * k));
+      else if (type === 12) v.push(dv.getFloat64(off + 8 * k, le)); else if (type === 11) v.push(dv.getFloat32(off + 4 * k, le));
+      else if (type === 2) { v.push(new TextDecoder().decode(b.slice(off, off + cnt))); break; } else if (type === 16) v.push(Number(dv.getBigUint64(off + 8 * k, le)));
+      else { v.push(null); }
+    }
+    T[tag] = v;
+  }
+  const W = T[256][0], H = T[257][0], bits = (T[258] || [16])[0], comp = (T[259] || [1])[0], pred = (T[317] || [1])[0], fmt = (T[339] || [1])[0];
+  const tiled = !!T[322], tw = tiled ? T[322][0] : W, th = tiled ? T[323][0] : (T[278] || [H])[0];
+  const offs = tiled ? T[324] : T[273], cnts = tiled ? T[325] : T[279];
+  const bps = bits / 8, out = new Float64Array(W * H).fill(NaN);
+  const inflate = async u8 => new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer());
+  const tilesX = tiled ? Math.ceil(W / tw) : 1;
+  for (let t = 0; t < offs.length; t++) {
+    let raw = b.slice(offs[t], offs[t] + cnts[t]);
+    if (comp === 8 || comp === 32946) raw = await inflate(raw); else if (comp !== 1) throw new Error('TIFF compression ' + comp);
+    const rd = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+    const x0 = tiled ? (t % tilesX) * tw : 0, y0 = tiled ? Math.floor(t / tilesX) * th : t * th;
+    const rowsHere = Math.min(th, Math.floor(raw.byteLength / (tw * bps)));
+    for (let r = 0; r < rowsHere; r++) {
+      let acc = 0;
+      for (let c = 0; c < tw; c++) {
+        const o = (r * tw + c) * bps; let v;
+        if (bits === 16) v = fmt === 2 ? rd.getInt16(o, le) : rd.getUint16(o, le);
+        else if (bits === 32) v = fmt === 3 ? rd.getFloat32(o, le) : fmt === 2 ? rd.getInt32(o, le) : rd.getUint32(o, le);
+        else v = rd.getUint8(o);
+        if (pred === 2) { acc = bits === 16 ? ((acc + v) << 16 >> 16) : acc + v; v = acc; }
+        const X = x0 + c, Y = y0 + r;
+        if (X < W && Y < H) out[Y * W + X] = v;
+      }
+    }
+  }
+  const scale = T[33550] || [1, 1], tie = T[33922] || [0, 0, 0, 0, 0, 0];
+  const nodata = T[42113] ? parseFloat(T[42113][0]) : null;
+  return { W, H, x0: tie[3] - tie[0] * scale[0], y0: tie[4] + tie[1] * scale[1], dx: scale[0], dy: scale[1], data: out, nodata };
+}
+function rasterAt(R, lon, lat) {
+  const c = Math.floor((lon - R.x0) / R.dx), r = Math.floor((R.y0 - lat) / R.dy);
+  if (c < 0 || r < 0 || c >= R.W || r >= R.H) return null;
+  const v = R.data[r * R.W + c];
+  return (!isFinite(v) || v <= 0 || v === R.nodata || v === -32768) ? null : v;
+}
+
+// ── SoilGrids 2.0 rasters (WCS) for the basin's bounding box ──
+async function fetchSoilGrids(bbox, progress) {
+  const pad = 0.01, minLon = bbox.minLon - pad, maxLon = bbox.maxLon + pad, minLat = bbox.minLat - pad, maxLat = bbox.maxLat + pad;
+  const cell = Math.max(0.0025, (maxLon - minLon) / 110, (maxLat - minLat) / 110);
+  const nx = Math.max(2, Math.round((maxLon - minLon) / cell)), ny = Math.max(2, Math.round((maxLat - minLat) / cell));
+  const jobs = []; SOIL_PROPS.forEach(p => SOIL_DEPTHS.forEach(d => jobs.push({ p, d })));
+  let done = 0;
+  const res = await pool(jobs, 5, async job => {
+    const url = `https://maps.isric.org/mapserv?map=/map/${job.p}.map&SERVICE=WCS&VERSION=2.0.1&REQUEST=GetCoverage&COVERAGEID=${job.p}_${job.d}_mean` +
+      `&FORMAT=image/tiff&SUBSET=long(${minLon.toFixed(4)},${maxLon.toFixed(4)})&SUBSET=lat(${minLat.toFixed(4)},${maxLat.toFixed(4)})` +
+      `&SUBSETTINGCRS=http://www.opengis.net/def/crs/EPSG/0/4326&OUTPUTCRS=http://www.opengis.net/def/crs/EPSG/0/4326&SCALESIZE=long(${nx}),lat(${ny})`;
+    let last;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const r = await fetch(url, { signal: AbortSignal.timeout(40000) });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const R = await decodeGeoTiff(await r.arrayBuffer());
+        done++; progress && progress(`Soil: SoilGrids rasters ${done}/${jobs.length}…`);
+        return R;
+      } catch (e) { last = e; await sleep(800); }
+    }
+    throw last;
+  });
+  const grids = {}; let ok = 0;
+  jobs.forEach((j, i) => { if (res[i]) { (grids[j.p] = grids[j.p] || {})[j.d] = res[i]; ok++; } });
+  if (ok < jobs.length * 0.7 || !grids.clay || !grids.sand) throw new Error(`SoilGrids rasters: only ${ok}/${jobs.length} retrieved`);
+  return { grids, nx, ny, cell, ok, n: jobs.length };
+}
+// Per sub-basin depth profiles from raster values at its sample points → engine soil object
+function soilFromGrids(G, pts) {
+  const layers = SOIL_PROPS.map(p => ({ name: p, depths: SOIL_DEPTHS.map(d => {
+    const R = G.grids[p] && G.grids[p][d]; if (!R) return { label: d, values: { mean: null } };
+    let s = 0, c = 0; for (const q of pts) { const v = rasterAt(R, q.lon, q.lat); if (v != null) { s += v; c++; } }
+    return { label: d, values: { mean: c ? s / c : null } };
+  }) }));
+  const parsed = parseSoilGrids({ properties: { layers } });
+  return { ...parsed, textClass: soilTexture(parsed.clay, parsed.sand), ksat: soilKsat(parsed.sand, parsed.clay, parsed.por), nPoints: pts.length, realData: true };
+}
+
+// ── MODIS MCD12Q1 land cover: a pixel block around each sub-basin ──
+async function fetchLandCoverBlock(sub, k, model) {
+  const half = Math.max(1, Math.min(15, Math.round(Math.sqrt(sub.areaKm2) / 2) + 1));
+  const [lon, lat] = sub.labelPt;
+  const j = await fetchJSON(`https://modis.ornl.gov/rst/api/v1/MCD12Q1/subset?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}` +
+                            `&startDate=A2022001&endDate=A2022001&kmAboveBelow=${half}&kmLeftRight=${half}&band=LC_Type1`, 45000);
+  const data = j.subset && j.subset[0] && j.subset[0].data;
+  if (!data || !data.length) throw new Error('no MODIS data');
+  const nr = +j.nrows, nc = +j.ncols, cs = +j.cellsize, xll = +j.xllcorner, yll = +j.yllcorner, Rm = 6371007.181;
+  const inside = {}, all = {}; let nIn = 0;
+  for (let r = 0; r < nr; r++) for (let c = 0; c < nc; c++) {
+    const g = IGBP_GROUP[data[r * nc + c]]; if (!g) continue;
+    all[g] = (all[g] || 0) + 1;
+    const y = yll + (nr - r - 0.5) * cs, x = xll + (c + 0.5) * cs;
+    const la = y / Rm * 180 / Math.PI, lo = x / (Rm * Math.cos(y / Rm)) * 180 / Math.PI;
+    const bb = sub.bbox;
+    if ((!bb || (lo >= bb.minLon && lo <= bb.maxLon && la >= bb.minLat && la <= bb.maxLat)) && (model.subs.length === 1 && !sub.polygon ? true : pointInGeometry(lo, la, sub.polygon))) { inside[g] = (inside[g] || 0) + 1; nIn++; }
+  }
+  const use = nIn >= 15 ? inside : all, tot = Object.values(use).reduce((a, b) => a + b, 0);
+  if (!tot) throw new Error('no classified pixels');
+  const frac = {}; for (const g in use) frac[g] = use[g] / tot;
+  return { frac, nPix: tot, masked: nIn >= 15 };
+}
+function lcFromFractions(frac, stats, realData) {
+  const ks = Object.keys(frac).filter(g => LC_GROUPS[g] && frac[g] > 0);
+  const blend = f => ks.reduce((s, g) => s + frac[g] * f(LC_GROUPS[g]), 0);
+  const dom = ks.sort((a, b) => frac[b] - frac[a])[0];
+  return { lcClass: LC_GROUPS[dom].name, lcCode: +dom, frac, lcMix: ks.map(g => `${LC_GROUPS[g].name} ${Math.round(100 * frac[g])}%`).join(', '),
+           coverFact: blend(x => x.cover), solZ: blend(x => x.solZ), canmx: blend(x => x.canmx), esco: blend(x => x.esco), w: blend(x => x.w),
+           cnOf: hsg => blend(x => x.cn[hsg]), realData, ...stats };
+}
+// HRUs: land-cover classes covering at least 10% of the sub-basin (at most three)
+function hruClasses(frac) {
+  let ks = Object.keys(frac).filter(g => frac[g] >= 0.10).sort((a, b) => frac[b] - frac[a]).slice(0, 3);
+  if (!ks.length) ks = Object.keys(frac).sort((a, b) => frac[b] - frac[a]).slice(0, 2);
+  const s = ks.reduce((a, g) => a + frac[g], 0);
+  return ks.map(g => ({ lcCode: +g, frac: frac[g] / s }));
+}
+
+// ── Climate locations within the free-tier budget, Thiessen-weighted to sub-basins ──
+function kmeansPoints(pts, K) {
+  if (pts.length <= K) return pts.map(p => ({ lat: p.lat, lon: p.lon }));
+  const cl = Math.cos(mean(pts.map(p => p.lat)) * Math.PI / 180), d2 = (a, b) => ((a.lon - b.lon) * cl) ** 2 + (a.lat - b.lat) ** 2;
+  const C = [pts[Math.floor(pts.length / 2)]];
+  while (C.length < K) { let best = null, bd = -1; for (const p of pts) { const d = Math.min(...C.map(c => d2(p, c))); if (d > bd) { bd = d; best = p; } } C.push(best); }
+  let cen = C.map(c => ({ lat: c.lat, lon: c.lon }));
+  for (let it = 0; it < 20; it++) {
+    const acc = cen.map(() => ({ la: 0, lo: 0, n: 0 }));
+    for (const p of pts) { let bi = 0, bd = Infinity; cen.forEach((c, i) => { const d = d2(p, c); if (d < bd) { bd = d; bi = i; } }); acc[bi].la += p.lat; acc[bi].lo += p.lon; acc[bi].n++; }
+    cen = cen.map((c, i) => acc[i].n ? { lat: acc[i].la / acc[i].n, lon: acc[i].lo / acc[i].n } : c);
+  }
+  // snap each centre to the nearest sample point so every location lies inside the basin
+  return cen.map(c => { let best = pts[0], bd = Infinity; for (const p of pts) { const d = d2(p, c); if (d < bd) { bd = d; best = p; } } return { lat: best.lat, lon: best.lon }; });
+}
+async function fetchClimateLocations(locs, years, progress) {
+  const endY = lastFullYear(), startY = endY - years + 1, sd = `${startY}-01-01`, ed = `${endY}-12-31`;
+  const url = 'https://archive-api.open-meteo.com/v1/archive?latitude=' + locs.map(l => l.lat.toFixed(4)).join(',') + '&longitude=' + locs.map(l => l.lon.toFixed(4)).join(',') +
+              `&start_date=${sd}&end_date=${ed}&daily=${ERA5_VARS.join(',')}&timezone=UTC`;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      progress(`Climate: ERA5 for ${locs.length} location(s), ${startY}–${endY}…`);
+      const r = await fetch(url, { signal: AbortSignal.timeout(60000) });
+      if (r.status === 429 && attempt === 0) {
+        for (let s = 62; s > 0; s -= 2) { progress(`Climate: Open-Meteo per-minute limit reached — retrying in ${s} s…`); await sleep(2000); }
+        continue;
+      }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json(), arr = Array.isArray(j) ? j : [j];
+      if (arr.length !== locs.length || !arr[0].daily) throw new Error('unexpected response');
+      return { source: 'ERA5 reanalysis via Open-Meteo archive API', srcShort: 'ERA5', startY, endY, time: arr[0].daily.time,
+               series: arr.map(o => ({ P: o.daily.precipitation_sum, Tx: o.daily.temperature_2m_max, Tn: o.daily.temperature_2m_min, ET0: o.daily.et0_fao_evapotranspiration, Rs: o.daily.shortwave_radiation_sum, elev: o.elevation })) };
+    } catch (e) { if (attempt === 1 || !/429/.test(String(e))) { console.warn('ERA5 failed', e); break; } }
+  }
+  // NASA POWER, one request per location
+  progress('Climate: ERA5 unavailable — NASA POWER…');
+  const pw = await pool(locs.slice(0, 6), 2, l => fetchClimatePOWER(l.lat, l.lon, years, null, null, startY, endY));
+  const okI = pw.map((r, i) => r ? i : -1).filter(i => i >= 0);
+  if (!okI.length) throw new Error('no climate source reachable');
+  const series = locs.map((l, i) => { const r = pw[okI.includes(i) ? i : okI[0]]; const d = r.daily;
+    return { P: d.precipitation, Tx: d.temperature_2m_max, Tn: d.temperature_2m_min, ET0: d.et0_fao_evapotranspiration, Rs: d.shortwave_radiation, elev: r.forcingElev }; });
+  return { source: 'NASA POWER daily (MERRA-2 / CERES); ERA5 archive was unavailable', srcShort: 'NASA POWER', startY, endY, time: pw[okI[0]].daily.time, series };
+}
+function weightedClimate(C, w, extra) {
+  const n = C.time.length, out = { time: C.time, precipitation: new Array(n), temperature_2m_max: new Array(n), temperature_2m_min: new Array(n),
+    et0_fao_evapotranspiration: new Array(n), shortwave_radiation: new Array(n) };
+  const keys = [['precipitation', 'P'], ['temperature_2m_max', 'Tx'], ['temperature_2m_min', 'Tn'], ['et0_fao_evapotranspiration', 'ET0'], ['shortwave_radiation', 'Rs']];
+  for (const [k, s] of keys) for (let i = 0; i < n; i++) {
+    let v = 0, ww = 0; for (let j = 0; j < w.length; j++) { if (!w[j]) continue; const x = C.series[j][s] && C.series[j][s][i]; if (x != null && isFinite(x)) { v += w[j] * x; ww += w[j]; } }
+    out[k][i] = ww > 0 ? +(v / ww).toFixed(3) : null;
+  }
+  let ez = 0, ew = 0; w.forEach((x, j) => { const e = C.series[j].elev; if (x && e != null && isFinite(e)) { ez += x * e; ew += x; } });
+  return Object.assign({ daily: out, realData: true, forcingElev: ew ? ez / ew : null, source: C.source, srcShort: C.srcShort, startY: C.startY, endY: C.endY }, extra || {});
+}
+
+// ── Build the spatial model ──
+async function buildSpatialModel(basin, sb, years, progress) {
+  progress = progress || (() => {});
+  const model = { subs: sb.subs, topo: sb.topo, root: sb.root, rivers: sb.rivers || [], thresholdKm: sb.thresholdKm, source: sb.source };
+  const pts = subbasinSamplePoints(model, basin, 32);
+  const grid = pts.filter(p => !p.dense);
+  const flags = {};
+  // terrain
+  const demJob = (async () => {
+    const chunks = []; for (let i = 0; i < pts.length; i += 100) chunks.push(pts.slice(i, i + 100));
+    let got = 0;
+    // one request at a time, with retries: Open-Meteo refuses concurrent bursts (HTTP 429)
+    await pool(chunks, 1, async ch => {
+      const url = 'https://api.open-meteo.com/v1/elevation?latitude=' + ch.map(p => p.lat).join(',') + '&longitude=' + ch.map(p => p.lon).join(',');
+      let j = null;
+      for (let a = 0; a < 3 && !j; a++) { try { j = await fetchJSON(url, 25000); } catch (e) { if (a < 2) await sleep(a ? 8000 : 2500); } }
+      if (!j) throw new Error('elevation request failed');
+      (j.elevation || []).forEach((e, i) => { if (e != null && isFinite(e) && e > -500) { ch[i].z = e; got++; } });
+      progress(`Terrain: Copernicus DEM ${got}/${pts.length} points…`);
+    });
+    flags.dem = got >= pts.length * 0.6;
+    setBadge('b_dem', flags.dem ? 'ok' : 'err', flags.dem ? `DEM ✓ (${got} pts)` : 'DEM (est.)');
+  })();
+  // climate
+  const nDays = years * 365.25, wLoc = nDays / 14 * ERA5_VARS.length / 10;
+  const K = Math.max(1, Math.min(12, model.subs.length * 2, Math.floor(OPEN_METEO_BUDGET / wLoc)));
+  const locs = kmeansPoints(grid.length ? grid : pts, K);
+  const climJob = (async () => {
+    setBadge('b_met', 'load', 'ERA5…');
+    try { model.clim = await fetchClimateLocations(locs, years, progress); flags.climate = true; }
+    catch (e) { flags.climate = false; }
+  })();
+  // soil
+  const soilJob = (async () => {
+    setBadge('b_soil', 'load', 'SoilGrids…');
+    try { model.soilGrids = await fetchSoilGrids(basin.bbox, progress); flags.soil = true; setBadge('b_soil', 'ok', `SoilGrids ✓ (${model.soilGrids.ok} rasters)`); }
+    catch (e) { console.warn('SoilGrids WCS failed', e); flags.soil = false; }
+  })();
+  // land cover
+  const lcJob = (async () => {
+    setBadge('b_lc', 'load', 'MODIS LC…');
+    let n = 0;
+    const res = await pool(model.subs, 4, async (s, k) => { const r = await fetchLandCoverBlock(s, k, model); n++; progress(`Land cover: MODIS blocks ${n}/${model.subs.length}…`); return r; });
+    res.forEach((r, k) => { model.subs[k].lcRaw = r; });
+    const nOk = res.filter(Boolean).length;
+    flags.lc = nOk >= Math.ceil(model.subs.length * 0.5);
+    setBadge('b_lc', flags.lc ? 'ok' : 'err', flags.lc ? `MODIS ✓ (${nOk}/${model.subs.length})` : 'Land cover (est.)');
+  })();
+  await Promise.all([demJob, climJob, soilJob, lcJob]);
+
+  // ── climate per sub-basin (Thiessen weights of the climate locations) ──
+  let C = model.clim;
+  if (!C) {
+    const syn = syntheticClimate(S.lat, S.lon, years), d = syn.daily;
+    C = { source: 'SYNTHETIC stand-in (no climate service reachable)', srcShort: 'synthetic', startY: syn.startY, endY: syn.endY, time: d.time, synthetic: true,
+          series: locs.map(() => ({ P: d.precipitation, Tx: d.temperature_2m_max, Tn: d.temperature_2m_min, ET0: d.et0_fao_evapotranspiration, Rs: null, elev: null })) };
+    setBadge('b_met', 'err', 'Climate (synthetic)');
+  } else setBadge('b_met', 'ok', `${C.srcShort} ✓ (${C.series.length} loc)`);
+  const cl = Math.cos(S.lat * Math.PI / 180);
+  const nearest = p => { let bi = 0, bd = Infinity; locs.forEach((l, i) => { const d = ((p.lon - l.lon) * cl) ** 2 + (p.lat - l.lat) ** 2; if (d < bd) { bd = d; bi = i; } }); return bi; };
+  pts.forEach(p => { p.loc = nearest(p); });
+  // ── per sub-basin terrain, soil, land cover, parameters, HRUs ──
+  const allZ = grid.map(p => p.z).filter(z => z != null);
+  const basinZ = allZ.length ? mean(allZ) : null;
+  model.subs.forEach((s, k) => {
+    const mine = pts.filter(p => p.sub === k);
+    s.lon = s.centroid ? s.centroid[0] : s.labelPt[0]; s.lat = s.centroid ? s.centroid[1] : s.labelPt[1];
+    // climate
+    const w = locs.map(() => 0); mine.forEach(p => { w[p.loc] += 1; });
+    if (!mine.length) w[nearest({ lon: s.lon, lat: s.lat })] = 1;
+    s.climW = w.map(x => x / Math.max(1, mine.length || 1));
+    s.climate = weightedClimate(C, s.climW, { realData: !C.synthetic, nPoints: s.climW.filter(x => x > 0).length });
+    if (s.climate.forcingElev == null) s.climate.forcingElev = basinZ;
+    // terrain
+    const zs = mine.map(p => p.z).filter(z => z != null).sort((a, b) => a - b);
+    if (zs.length >= 2) {
+      const mn = mean(zs), mi = zs[0], mx = zs[zs.length - 1], Lm = Math.sqrt(Math.max(1, s.areaKm2) * 1e6);
+      const slopeFrac = Math.max(0.003, Math.min(0.7, 4 * (mx - mi) / Lm));
+      s.dem = { mean: mn, min: mi, max: mx, std: std(zs), slopeFrac, slope: Math.atan(slopeFrac) * 180 / Math.PI, hypso: 0, hypsoCurve: zs, relief: mx - mi, nPoints: zs.length, realData: true };
+    } else {
+      const z = basinZ != null ? basinZ : 300;
+      s.dem = { mean: z, min: z * 0.8, max: z * 1.3, std: z * 0.1, slopeFrac: 0.05, slope: 3, hypso: 0.4, hypsoCurve: null, relief: z * 0.5, nPoints: 0, realData: false };
+    }
+    // soil
+    try { s.soil = model.soilGrids ? soilFromGrids(model.soilGrids, mine.length ? mine : [{ lon: s.lon, lat: s.lat }]) : null; } catch (e) { s.soil = null; }
+  });
+  // sub-basins without valid soil (water, urban or a failed request) take the basin average
+  const soilOk = model.subs.filter(s => s.soil);
+  let basinSoil = null;
+  if (soilOk.length) {
+    const A = soilOk.reduce((a, s) => a + s.areaKm2, 0), avg = {};
+    ['clay', 'sand', 'silt', 'bd', 'soc', 'fc', 'pwp', 'awc', 'por'].forEach(key => { avg[key] = soilOk.reduce((a, s) => a + s.soil[key] * s.areaKm2, 0) / A; });
+    basinSoil = { ...avg, textClass: soilTexture(avg.clay, avg.sand), ksat: soilKsat(avg.sand, avg.clay, avg.por), nPoints: grid.length, realData: true };
+  } else {
+    // REST point queries as a fallback (slow, rate-limited)
+    progress('Soil: rasters unavailable — querying SoilGrids at a few points…');
+    const s0 = await fetchSoil(S.lat, S.lon, basin.bbox, basin.polygon);
+    basinSoil = s0; flags.soil = !!s0.realData;
+  }
+  model.subs.forEach(s => { if (!s.soil) s.soil = Object.assign({}, basinSoil, { inherited: true }); });
+  setBadge('b_soil', flags.soil ? 'ok' : 'err', flags.soil ? (model.soilGrids ? `SoilGrids ✓ (raster)` : `SoilGrids ✓ (points)`) : 'Soil (est.)');
+  // land cover: sub-basins without a block take the basin mix; with no blocks at all, a climate-based estimate
+  const lcOk = model.subs.filter(s => s.lcRaw);
+  let basinFrac = {};
+  if (lcOk.length) {
+    const A = lcOk.reduce((a, s) => a + s.areaKm2, 0);
+    lcOk.forEach(s => { for (const g in s.lcRaw.frac) basinFrac[g] = (basinFrac[g] || 0) + s.lcRaw.frac[g] * s.areaKm2 / A; });
+  }
+  model.subs.forEach(s => {
+    const stats = climateStats(s.climate);
+    if (s.lcRaw) s.lc = lcFromFractions(s.lcRaw.frac, stats, true);
+    else if (lcOk.length) s.lc = Object.assign(lcFromFractions(basinFrac, stats, true), { inherited: true });
+    else {
+      const est = estimateLandCoverFromClimate(stats, s.dem, s.lat);
+      s.lc = lcFromFractions({ [est]: 1 }, stats, false); s.lc.lcClass += ' (estimated)';
+    }
+    // a-priori parameters for the sub-basin and its HRUs
+    const sbasin = { areaKm2: s.areaKm2 };
+    s.ws = deriveWatershedParams(s.lat, s.lon, s.dem, s.soil, s.lc, sbasin, s.climate);
+    s.hrus = hruClasses(s.lc.frac).map(h => {
+      const lcH = lcFromFractions({ [h.lcCode]: 1 }, stats, s.lc.realData);
+      const ws = deriveWatershedParams(s.lat, s.lon, s.dem, s.soil, lcH, sbasin, s.climate);
+      return { lcCode: h.lcCode, name: LC_GROUPS[h.lcCode].name, frac: h.frac, coverFact: LC_GROUPS[h.lcCode].cover, ws,
+               ap: { cn2: ws.cn2, sol_awc: ws.sol_awc, sol_k: ws.sol_k, esco: ws.esco } };
+    });
+  });
+  if (!flags.lc && lcOk.length) flags.lc = true;
+  model.apriori = modelApriori(model);
+  // ── basin averages for the lumped model and for display ──
+  const Atot = model.subs.reduce((a, s) => a + s.areaKm2, 0), wA = model.subs.map(s => s.areaKm2 / Atot);
+  const cw = locs.map(() => 0); model.subs.forEach((s, k) => s.climW.forEach((x, j) => { cw[j] += x * wA[k]; }));
+  const climate = weightedClimate(C, cw, { realData: !C.synthetic, nPoints: C.series.length, synthetic: !!C.synthetic });
+  if (climate.forcingElev == null) climate.forcingElev = basinZ;
+  const zAll = allZ.slice().sort((a, b) => a - b);
+  let dem;
+  if (zAll.length >= 2) {
+    const mi = zAll[0], mx = zAll[zAll.length - 1], Lm = Math.sqrt(Math.max(1, basin.areaKm2) * 1e6), slopeFrac = Math.max(0.003, Math.min(0.7, 4 * (mx - mi) / Lm));
+    dem = { mean: model.subs.reduce((a, s, k) => a + s.dem.mean * wA[k], 0), min: mi, max: mx, std: std(zAll), slopeFrac, slope: Math.atan(slopeFrac) * 180 / Math.PI,
+            hypso: zAll.reduce((a, e) => a + (e - mi) / (mx - mi + 1), 0) / zAll.length, hypsoCurve: zAll, relief: mx - mi, nPoints: zAll.length, realData: true };
+  } else dem = await fetchDEM(S.lat, S.lon, basin.bbox, basin.polygon, basin.areaKm2);
+  const lcFrac = {}; model.subs.forEach((s, k) => { for (const g in s.lc.frac) lcFrac[g] = (lcFrac[g] || 0) + s.lc.frac[g] * wA[k]; });
+  const lc = lcFromFractions(lcFrac, climateStats(climate), !!flags.lc);
+  if (!flags.lc) lc.lcClass += ' (estimated)';
+  model.nPts = pts.length; model.nLocs = C.series.length; model.locs = locs; model.flags = flags;
+  return { model, climate, dem, soil: basinSoil, lc, flags };
+}
+
+function estimateLandCoverFromClimate(stats, dem, lat) {
+  const { annP, meanT } = stats, absLat = Math.abs(lat);
+  if (annP > 1500 && meanT > 20) return 10;
+  if (annP > 800 && meanT > 3) return 10;
+  if (annP < 200) return 60;
+  if (dem && dem.mean > 4000) return 70;
+  if (annP < 450) return 20;
+  if (annP < 800 && (meanT < 3 || absLat < 25)) return 30;
+  return 40;
+}
+
+// ─────────────────────────────────────────────
+//  SUB-BASIN MODEL: dispatch, map layer, tables, exports
+// ─────────────────────────────────────────────
+function singleSubbasin(basin) {
+  const geom = basin.polygon || null;
+  return { ok: true, single: true, subs: [{ id: 1, down: -1, ups: [], totalKm2: basin.areaKm2, areaKm2: basin.areaKm2, geom, polygon: geom, bbox: basin.bbox,
+           reachLenKm: 0, pt: [S.lon, S.lat] }], topo: [0], root: 0, rivers: [], source: 'whole basin (one sub-basin)' };
+}
+function spatialActive() {
+  const el = document.getElementById('spMode');
+  return !!(S.model && S.model.subs && S.model.subs.length && S.model.subs[0].hrus && (!el || el.value === 'sub'));
+}
+// Single entry point for every model run in the app (simulation, calibration, ensembles, references)
+function simulate(params, opts, pFactor) {
+  opts = opts || engineOptions();
+  const f = pFactor && pFactor !== 1 ? pFactor : null;
+  if (spatialActive()) return runSWATDist(S.model, params, opts, f ? (s => perturbClimate(s.climate, f)) : null);
+  return runSWAT(f ? perturbClimate(S.climate, f) : S.climate, params, S.wsData, opts);
+}
+function spatialSummary() {
+  if (!S.model) return '—';
+  const nS = S.model.subs.length, nH = S.model.subs.reduce((a, s) => a + (s.hrus ? s.hrus.length : 0), 0);
+  if (!spatialActive()) return 'lumped (one unit)';
+  return `${nS} sub-basin${nS > 1 ? 's' : ''} · ${nH} HRUs`;
+}
+function onSpatialMode() {
+  const mode = document.getElementById('spMode').value;
+  if (!S.model) return;
+  if (mode === 'sub' && S.model.loadedMode === 'lumped' && S.model.subs.length === 1)
+    toast('ℹ Fetch the data again to delineate sub-basins; until then the basin runs as one sub-basin with land-cover HRUs.');
+  S.params = Object.assign({ coverFact: S.lc?.coverFact || 0.005 }, mode === 'sub' ? S.priorSpatial : S.priorLumped);
+  S.prior = Object.assign({}, mode === 'sub' ? S.priorSpatial : S.priorLumped);
+  S.calibBest = null; S.ppu = null; S.behavioural = null; S.simResult = null;
+  updateSliders();
+  document.getElementById('paramSrc').textContent = mode === 'sub' ? '(a-priori, area-weighted means)' : '(a-priori from data)';
+  const el = document.getElementById('wc_sub'); if (el) el.textContent = spatialSummary();
+  drawSubbasins();
+  toast(`Model structure: ${mode === 'sub' ? spatialSummary() : 'lumped (one unit)'} · parameters reset to their a-priori values. Run the simulation again.`);
+}
+
+// ── map layer ──
+const SUB_VARS = {
+  id:  { lab: 'Sub-basin', unit: '' },
+  P:   { lab: 'Precipitation', unit: 'mm/yr' },
+  Z:   { lab: 'Mean elevation', unit: 'm' },
+  CN:  { lab: 'Curve number (a-priori)', unit: '' },
+  Q:   { lab: 'Water yield', unit: 'mm/yr', run: true },
+  QP:  { lab: 'Runoff ratio', unit: '', run: true },
+  ET:  { lab: 'Actual ET', unit: 'mm/yr', run: true },
+};
+function subValue(k, key) {
+  const s = S.model.subs[k], r = S.simResult && S.simResult.spatial ? S.simResult.sub[k] : null;
+  if (key === 'P') { const st = climateStats(s.climate); return st.annP; }
+  if (key === 'Z') return s.dem.mean;
+  if (key === 'CN') return s.hrus.reduce((a, h) => a + h.ap.cn2 * h.frac, 0);
+  if (!r) return null;
+  if (key === 'Q') return r.Q_mm; if (key === 'QP') return r.runoffCoeff; if (key === 'ET') return r.ET_mm;
+  return null;
+}
+const RAMP = ['#e6f0f8', '#b9d4ea', '#7fb0d6', '#3f86bd', '#1b5a96', '#0b3466'];
+function rampColor(t) {
+  t = Math.max(0, Math.min(1, t)) * (RAMP.length - 1); const i = Math.min(RAMP.length - 2, Math.floor(t)), f = t - i;
+  const h = x => [1, 3, 5].map(j => parseInt(x.slice(j, j + 2), 16)), a = h(RAMP[i]), b = h(RAMP[i + 1]);
+  return '#' + a.map((v, j) => Math.round(v + (b[j] - v) * f).toString(16).padStart(2, '0')).join('');
+}
+function drawSubbasins() {
+  if (!MAP) return;
+  if (S._subLayer) { MAP.removeLayer(S._subLayer); S._subLayer = null; }
+  const box = document.getElementById('subLegend');
+  if (!S.model || S.model.subs.length < 2 || !spatialActive()) { if (box) box.style.display = 'none'; return; }
+  const g = L.layerGroup();
+  S._subPolys = S.model.subs.map((s, k) => {
+    const lyr = L.geoJSON(s.polygon, { style: { color: '#0b3466', weight: 1.2, fillColor: '#7fb0d6', fillOpacity: 0.28, fillRule: 'evenodd' } });
+    lyr.on('click', e => { L.popup().setLatLng(e.latlng).setContent(subPopup(k)).openOn(MAP); });
+    lyr.addTo(g); return lyr;
+  });
+  const maxO = Math.max(1, ...S.model.rivers.map(r => r.order));
+  S.model.rivers.forEach(r => L.polyline(r.c.map(p => [p[1], p[0]]), { color: '#1d4ed8', weight: 0.8 + 2.2 * r.order / maxO, opacity: 0.85, interactive: false }).addTo(g));
+  S.model.subs.forEach(s => {
+    const p = s.labelPt || s.pt;
+    L.marker([p[1], p[0]], { interactive: false, icon: L.divIcon({ className: 'sub-lbl', html: String(s.id), iconSize: [22, 16], iconAnchor: [11, 8] }) }).addTo(g);
+  });
+  g.addTo(MAP); S._subLayer = g;
+  if (S._basinLayer) S._basinLayer.setStyle({ fillOpacity: 0 });
+  if (box) box.style.display = 'block';
+  colorSubbasins();
+}
+function colorSubbasins() {
+  if (!S._subPolys || !S.model) return;
+  const sel = document.getElementById('subVar'), key = sel ? sel.value : 'P';
+  const def = SUB_VARS[key];
+  if (def.run && !(S.simResult && S.simResult.spatial)) { toast('ℹ Run the simulation to map ' + def.lab.toLowerCase() + '.'); if (sel) sel.value = 'P'; return colorSubbasins(); }
+  const vals = S.model.subs.map((s, k) => key === 'id' ? null : subValue(k, key));
+  const ok = vals.filter(v => v != null && isFinite(v)), lo = ok.length ? Math.min(...ok) : 0, hi = ok.length ? Math.max(...ok) : 1;
+  S._subPolys.forEach((lyr, k) => {
+    const v = vals[k], t = hi > lo ? (v - lo) / (hi - lo) : 0.5;
+    lyr.setStyle(key === 'id' ? { fillColor: '#7fb0d6', fillOpacity: 0.25 } : { fillColor: v == null ? '#cccccc' : rampColor(t), fillOpacity: 0.72 });
+  });
+  const fmtV = v => !isFinite(v) ? '—' : key === 'QP' ? v.toFixed(2) : Math.round(v).toLocaleString();
+  const lg = document.getElementById('subLegBar');
+  if (lg) lg.innerHTML = key === 'id' ? '<span style="color:var(--txt2)">Click a sub-basin for its properties</span>' :
+    `<div style="height:8px;border-radius:3px;background:linear-gradient(90deg,${RAMP.join(',')})"></div>` +
+    `<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--txt2);margin-top:2px"><span>${fmtV(lo)}</span><span>${def.unit}</span><span>${fmtV(hi)}</span></div>`;
+}
+function toggleSubLayer() {
+  if (!S._subLayer) { drawSubbasins(); return; }
+  if (MAP.hasLayer(S._subLayer)) { MAP.removeLayer(S._subLayer); document.getElementById('btnSub')?.classList.remove('on'); }
+  else { S._subLayer.addTo(MAP); document.getElementById('btnSub')?.classList.add('on'); }
+}
+function subPopup(k) {
+  const s = S.model.subs[k], r = S.simResult && S.simResult.spatial ? S.simResult.sub[k] : null, st = climateStats(s.climate);
+  const row = (a, b) => `<tr><td style="color:#555;padding:1px 8px 1px 0">${a}</td><td style="text-align:right">${b}</td></tr>`;
+  const down = s.down >= 0 ? 'sub-basin ' + S.model.subs[s.down].id : 'basin outlet';
+  return `<div style="font:12px system-ui,sans-serif;min-width:220px"><b>Sub-basin ${s.id}</b> → ${down}<table style="margin-top:4px">` +
+    row('Own area', `${Math.round(s.areaKm2).toLocaleString()} km²`) + row('Drainage area', `${Math.round(s.totalKm2).toLocaleString()} km²`) +
+    row('Main channel', `${s.reachLenKm.toFixed(1)} km`) + row('Elevation', `${s.dem.mean.toFixed(0)} m (${s.dem.min.toFixed(0)}–${s.dem.max.toFixed(0)})`) +
+    row('Precipitation', `${st.annP.toFixed(0)} mm/yr`) + row('Mean temperature', `${st.meanT.toFixed(1)} °C`) +
+    row('Soil', `${s.soil.textClass} · AWC ${s.soil.awc.toFixed(2)}${s.soil.inherited ? ' (basin mean)' : ''}`) +
+    row('Land cover', s.lc.lcMix) + row('HRUs', s.hrus.map(h => `${h.name} ${Math.round(100 * h.frac)}% (CN ${h.ap.cn2.toFixed(0)})`).join('<br>')) +
+    (r ? row('Water yield', `${r.Q_mm.toFixed(0)} mm/yr (Q/P ${r.runoffCoeff.toFixed(2)})`) + row('Actual ET', `${r.ET_mm.toFixed(0)} mm/yr`) +
+         row('Outflow', `${r.meanOutflow.toFixed(2)} m³/s`) : '') + '</table></div>';
+}
+
+// ── results table ──
+function renderSubTable() {
+  const card = document.getElementById('rSubCard'), body = document.getElementById('rSubBody');
+  const r = S.simResult;
+  if (!card || !body) return;
+  if (!r || !r.spatial) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  body.innerHTML = r.sub.map((x, k) => {
+    const s = S.model.subs[k], gen = x.surf_mm + x.lat_mm + x.base_mm || 1;
+    return `<tr><td>${s.id}</td><td>${s.down >= 0 ? S.model.subs[s.down].id : 'outlet'}</td><td>${Math.round(s.areaKm2).toLocaleString()}</td><td>${s.dem.mean.toFixed(0)}</td>` +
+      `<td>${x.P_mm.toFixed(0)}</td><td>${x.PET_mm.toFixed(0)}</td><td>${x.ET_mm.toFixed(0)}</td><td>${x.Q_mm.toFixed(0)}</td><td>${x.runoffCoeff.toFixed(2)}</td>` +
+      `<td>${Math.round(100 * x.surf_mm / gen)}/${Math.round(100 * x.lat_mm / gen)}/${Math.round(100 * x.base_mm / gen)}</td>` +
+      `<td style="text-align:left">${s.hrus.map(h => h.name + ' ' + Math.round(100 * h.frac) + '%').join(', ')}</td><td style="text-align:left">${s.soil.textClass}</td><td>${x.meanOutflow.toFixed(2)}</td></tr>`;
+  }).join('');
+}
+
+// ── exports for the sub-basin model ──
+function spatialFile(type, head) {
+  const r = S.simResult, f = (v, d) => v == null || !isFinite(v) ? '' : (+v).toFixed(d), pad = (s, n) => String(s).padStart(n);
+  const subs = S.model.subs, n = r.flow.length;
+  const months = []; let cur = null;
+  for (let i = 0; i < n; i++) { const ym = r.dates[i].slice(0, 7); if (!cur || cur.ym !== ym) { cur = { ym, i0: i, i1: i }; months.push(cur); } cur.i1 = i; }
+  if (type === 'rch') {
+    let t = head + `# Reaches of the sub-basin network: mean outflow at each sub-basin outlet (m³/s) by calendar month; FLOW_IN is the routed inflow from upstream sub-basins\n` +
+      ' RCH  GIS   YEAR MON  AREAkm2   FLOW_INcms  FLOW_OUTcms\n';
+    for (const m of months) subs.forEach((s, k) => {
+      const x = r.sub[k]; let qo = 0, ql = 0; for (let i = m.i0; i <= m.i1; i++) { qo += x.outflow[i]; ql += x.local[i]; }
+      const days = m.i1 - m.i0 + 1;
+      t += `${pad(s.id, 4)} ${pad(s.down >= 0 ? subs[s.down].id : 0, 4)} ${m.ym.slice(0, 4)} ${pad(+m.ym.slice(5), 3)} ${pad(f(s.totalKm2, 1), 9)} ${pad(f((qo - ql) / days, 3), 12)} ${pad(f(qo / days, 3), 12)}\n`;
+    });
+    return t;
+  }
+  if (type === 'sub') {
+    let t = head + `# Sub-basin water balance, mean annual (mm) · delineation: ${S.model.source || ''}\n` +
+      ' SUB  DOWN  AREAkm2  ELEVm   PRECIP    SNOW     PET      ET   SURQ   LATQ    GWQ   WYLD  Q/P  DEEPLOSS  SOIL  LANDCOVER\n';
+    r.sub.forEach((x, k) => { const s = subs[k];
+      t += `${pad(s.id, 4)} ${pad(s.down >= 0 ? subs[s.down].id : 0, 5)} ${pad(f(s.areaKm2, 1), 8)} ${pad(f(s.dem.mean, 0), 6)} ${[x.P_mm, x.snow_mm, x.PET_mm, x.ET_mm, x.surf_mm, x.lat_mm, x.base_mm, x.Q_mm].map(v => pad(f(v, 1), 7)).join(' ')} ${pad(f(x.runoffCoeff, 2), 4)} ${pad(f(x.loss_mm, 1), 9)}  ${s.soil.textClass}  "${s.lc.lcMix}"\n`; });
+    const mb = r.massBalance;
+    t += `\n# Basin (routed outlet): P=${mb.P_mm} ET=${mb.ET_mm} Q=${mb.Q_mm} loss=${mb.deepLoss_mm} dS=${mb.dStore_mm} (channel storage ${f(r.reachStoreChange_mm, 2)}) closure=${mb.closureErr}%\n`;
+    return t;
+  }
+  if (type === 'hru') {
+    let t = head + `# Hydrologic response units (land-cover classes ≥10% of a sub-basin), mean annual (mm)\n` +
+      ' HRU  SUB  LANDCOVER              AREAkm2  FRAC   CN2   PRECIP      ET    SURQ    LATQ     GWQ    WYLD   RECHG\n';
+    r.hru.forEach((h, j) => { const s = subs[h.sub];
+      t += `${pad(j + 1, 4)} ${pad(s.id, 4)}  ${String(h.name).padEnd(20)} ${pad(f(h.areaKm2, 1), 8)} ${pad(f(h.frac, 2), 5)} ${pad(f(h.cn2, 1), 5)} ${[h.P, h.ET, h.surf, h.lat, h.bf, h.Q, h.rech].map(v => pad(f(v, 1), 7)).join(' ')}\n`; });
+    return t;
+  }
+  return null;
+}
+function subbasinGeoJSON() {
+  if (!S.model) return '{}';
+  const r = S.simResult && S.simResult.spatial ? S.simResult : null;
+  const fc = { type: 'FeatureCollection', name: `HydroGlobal sub-basins · ${S.name || ''}`, features: S.model.subs.map((s, k) => ({
+    type: 'Feature', geometry: s.polygon,
+    properties: Object.assign({ sub: s.id, down: s.down >= 0 ? S.model.subs[s.down].id : 0, area_km2: +s.areaKm2.toFixed(2), drainage_km2: +s.totalKm2.toFixed(2),
+      channel_km: +s.reachLenKm.toFixed(2), elev_m: +s.dem.mean.toFixed(0), precip_mm: +climateStats(s.climate).annP.toFixed(0), soil: s.soil.textClass,
+      land_cover: s.lc.lcMix, hrus: s.hrus.map(h => `${h.name} ${Math.round(100 * h.frac)}%`).join('; ') },
+      r ? { et_mm: +r.sub[k].ET_mm.toFixed(1), wyld_mm: +r.sub[k].Q_mm.toFixed(1), runoff_ratio: +r.sub[k].runoffCoeff.toFixed(3), outflow_cms: +r.sub[k].meanOutflow.toFixed(3) } : {}) })) };
+  fc.features.push({ type: 'Feature', geometry: { type: 'MultiLineString', coordinates: S.model.rivers.map(x => x.c) }, properties: { layer: 'stream network (MERIT-Hydro)' } });
+  return JSON.stringify(fc);
 }
 
 // ─────────────────────────────────────────────
@@ -2788,30 +3795,53 @@ async function loadWatershed() {
     if (basin.polygon) drawBasinPolygon(basin.polygon); else drawCircle(S.lat, S.lon, basin.areaKm2);
     placePin(S.lat, S.lon, S.name || `${S.lat.toFixed(2)}°, ${S.lon.toFixed(2)}°`);
 
-    // 2–4 — climate, terrain, soil sampled inside the delineated polygon
-    const [climate, dem, soil] = await Promise.all([
-      fetchClimate(S.lat, S.lon, years, basin.bbox, basin.polygon),
-      fetchDEM(S.lat, S.lon, basin.bbox, basin.polygon, basin.areaKm2),
-      fetchSoil(S.lat, S.lon, basin.bbox, basin.polygon),
-    ]);
-    S.climate = climate; S.dem = dem; S.soil = soil;
-
-    // 5 — land cover
-    S.lc = await fetchLandCover(S.lat, S.lon, basin.bbox, basin.polygon, climate, dem);
+    // 2 — sub-basins from existing boundaries (MERIT-Basins unit catchments)
+    const mode = document.getElementById('spMode').value, detail = document.getElementById('spDetail').value;
+    let sb = null;
+    if (mode === 'sub' && basin.polygon && basin.realData) {
+      setLoadStep('Step 2/6 — Sub-basins from the MERIT-Hydro river network and MERIT-Basins unit catchments…');
+      try { sb = await delineateSubbasins(basin, S.lat, S.lon, SUB_DETAIL[detail] || 16, setLoadStep); } catch (e) { sb = { ok: false, why: e.message }; }
+      if (sb.ok) {
+        basin.pointKm2 = basin.areaKm2; basin.polygon = sb.basinGeom; basin.areaKm2 = Math.round(sb.basinKm2);
+        basin.bbox = getBbox(sb.basinGeom.type === 'MultiPolygon' ? sb.basinGeom.coordinates.map(p => p[0]) : [sb.basinGeom.coordinates[0]]);
+        if (sb.vectorOutline) basin.source += ' · outline and sub-basins from MERIT-Basins unit catchments';
+        setBadge('b_ws', 'ok', `Basin ✓ · ${sb.subs.length} sub-basins`);
+      } else {
+        setBadge('b_ws', 'ok', 'Basin ✓ · 1 unit');
+        S.subWhy = sb.why;
+      }
+    }
+    if (mode === 'sub' && (!sb || !sb.ok)) S.subWhy = S.subWhy || (basin.realData ? 'no basin outline' : 'basin outline was estimated'); else S.subWhy = null;
+    if (!sb || !sb.ok) sb = singleSubbasin(basin);
+    S.subInfo = sb;
+    if (basin.polygon) drawBasinPolygon(basin.polygon);
+    // 3–5 — climate, terrain, soil and land cover for every sub-basin, plus basin averages
+    const built = await buildSpatialModel(basin, sb, years, setLoadStep);
+    const climate = built.climate, dem = built.dem, soil = built.soil;
+    S.model = built.model; S.model.loadedMode = mode; S.climate = climate; S.dem = dem; S.soil = soil; S.lc = built.lc;
+    drawSubbasins();
+    document.getElementById('ds_met').textContent = `${S.climate.srcShort || 'synthetic'} · ${S.model.nLocs} location(s), Thiessen-weighted`;
+    document.getElementById('ds_dem').textContent = `${dem.mean.toFixed(0)} m (${dem.min.toFixed(0)}–${dem.max.toFixed(0)} · ${S.model.nPts} pts)`;
+    document.getElementById('ds_soil').textContent = `${soil.textClass} · AWC ${soil.awc.toFixed(2)}` + (soil.realData ? '' : ' (ESTIMATED)');
+    document.getElementById('ds_lc').textContent = S.lc.lcClass;
 
     setLoadStep('Deriving a-priori parameters…');
     const ws = deriveWatershedParams(S.lat, S.lon, dem, soil, S.lc, basin, climate);
     S.wsData = ws;
-    S.params = { coverFact: S.lc.coverFact };
-    PARAM_DEFS.forEach(d => { S.params[d.k] = ws[d.k]; });
+    S.prior = {};
+    PARAM_DEFS.forEach(d => { S.prior[d.k] = ws[d.k]; });
+    S.priorLumped = Object.assign({}, S.prior);
+    S.priorSpatial = Object.assign({}, S.prior, S.model.apriori);
+    S.params = Object.assign({ coverFact: S.lc.coverFact }, spatialActive() ? S.priorSpatial : S.priorLumped);
+    S.prior = Object.assign({}, spatialActive() ? S.priorSpatial : S.priorLumped);
     updateSliders();
-    document.getElementById('paramSrc').textContent = '(a-priori from data)';
+    document.getElementById('paramSrc').textContent = spatialActive() ? '(a-priori, area-weighted means)' : '(a-priori from data)';
     document.getElementById('paramSrc').style.color = 'var(--c2)';
 
     // 6 — observed discharge, else synthetic reference
     let obs = null;
     if (climate.realData) { try { obs = await fetchUSGS(S.lat, S.lon, ws.areaKm2, climate.daily.time); } catch (e) { console.warn('USGS lookup failed:', e); } }
-    if (!obs) { setLoadStep('No gauge matched — building Budyko reference…'); obs = budykoReference(climate, ws); }
+    if (!obs) { setLoadStep('No gauge matched — building Budyko reference…'); obs = budykoReference(climate, ws, null, p => simulate(p)); }
     setObserved(obs);
 
     const nm = S.name || `${S.lat.toFixed(2)}°, ${S.lon.toFixed(2)}°`;
@@ -2824,7 +3854,8 @@ async function loadWatershed() {
     set('wc_kop', ws.koppen);
     set('wc_lc', S.lc.lcClass);
     set('wc_soil', soil.textClass + ' · HSG-' + ws.hsg + (soil.realData ? ` (${soil.nPoints} pts)` : ' est.'));
-    set('wc_cn2', ws.cn2.toFixed(1) + ' (' + ws.hsg + ')');
+    set('wc_cn2', S.params.cn2.toFixed(1) + ' (' + ws.hsg + ')');
+    set('wc_sub', spatialSummary());
     set('wc_awc', ws.sol_awc.toFixed(3) + ' mm/mm');
     document.getElementById('wsCard').style.display = 'block';
 
@@ -2834,13 +3865,15 @@ async function loadWatershed() {
     set('sb_d', nD.toLocaleString() + ' days · A=' + ws.areaKm2.toLocaleString() + 'km²');
 
     const flags = [['basin', basin.realData], ['climate', climate.realData], ['terrain', dem.realData], ['soil', soil.realData], ['land cover', S.lc.realData]];
+    if (!climate.realData) setBadge('b_met', 'err', 'Climate (synthetic)');
     const failed = flags.filter(f => !f[1]).map(f => f[0]);
     S.dataFlags = { failed, obsKind: obs.kind };
     setHdrStatus('READY');
     document.getElementById('runBtn').disabled = false;
-    toast(failed.length
+    const subNote = S.subWhy ? ` · sub-basins unavailable (${S.subWhy}); modelled as one sub-basin with land-cover HRUs` : '';
+    toast((failed.length
       ? `⚠ ${nm}: ${failed.join(', ')} could not be retrieved and ${failed.length > 1 ? 'are' : 'is'} ESTIMATED. Results are indicative only.`
-      : `✅ ${nm} · all 5 data layers live · ${ws.areaKm2.toLocaleString()} km² · ${obs.kind === 'observed' ? obs.short : 'no gauge (synthetic reference)'}`);
+      : `✅ ${nm} · all 5 data layers live · ${ws.areaKm2.toLocaleString()} km² · ${spatialSummary()} · ${obs.kind === 'observed' ? obs.short : 'no gauge (synthetic reference)'}`) + subNote);
   } catch (e) {
     console.error(e);
     setHdrStatus('ERROR');
@@ -2858,7 +3891,7 @@ async function runSim() {
   await sleep(30);
   try {
     S.params.coverFact = S.lc?.coverFact || 0.005;
-    const result = runSWAT(S.climate, S.params, S.wsData);
+    const result = simulate(S.params);
     S.simResult = result;
     const obs = S.obsFlow || [];
     const m = calcMetrics(result.flow, obs);
@@ -2872,6 +3905,7 @@ async function runSim() {
       `WB mm/yr: P=${mb.P_mm} ET=${mb.ET_mm} Q=${mb.Q_mm} · Q/P=${mb.runoffCoeff} · closure ${mb.closureErr}%`;
     const meanQ = mean(result.flow).toFixed(2), peakQ = Math.max(...result.flow).toFixed(1);
     animCharts(result, obs);
+    if (result.spatial) { colorSubbasins(); renderSubTable(); }
     const ref = S.obsMeta?.kind === 'observed' ? '' : ' (vs synthetic reference)';
     setHdrStatus(m.n >= 30 ? `KGE=${m.kge.toFixed(3)}${ref} · Q̄=${meanQ} m³/s` : `Q̄=${meanQ} m³/s`);
     toast(`✅ Q̄=${meanQ} m³/s · Qmax=${peakQ} m³/s` + (m.n >= 30 ? ` · KGE=${m.kge.toFixed(3)} · PBIAS=${m.pbias.toFixed(1)}%${ref}` : ''));
@@ -2989,7 +4023,7 @@ async function startCalib() {
   const base = { ...S.params, coverFact: S.lc?.coverFact || 0.005 };
 
   // parameters and ranges (snow parameters only when snowfall is material)
-  const r0 = runSWAT(clim, base, ws, opts);
+  const r0 = simulate(base, opts);
   const snowFrac = r0.massBalance.snow_mm / Math.max(1, r0.massBalance.P_mm);
   const keys = PARAM_DEFS.filter(d => !(d.snow && snowFrac < 0.03)).map(d => d.k);
   const lo = [], hi = [];
@@ -3017,7 +4051,7 @@ async function startCalib() {
   let beh = [], nBeh = 0, best = null, iter = 0;
   const evaluate = x => {
     const tr = { ...base }; keys.forEach((k, j) => tr[k] = x[j]);
-    const r = runSWAT(clim, tr, ws, opts);
+    const r = simulate(tr, opts);
     const m = calcMetrics(r.flow, obs, start, splitIdx), sc = objective(m, objKind);
     keys.forEach((k, j) => dotty[k].push({ x: x[j], y: sc }));
     X.push(x.slice()); Y.push(Math.max(-2, sc));
@@ -3232,8 +4266,7 @@ function uncertaintyEnsemble(nRuns) {
     for (let k = 0; k < nRuns; k++) {
       const p = { ...base };
       if (k > 0) PARAM_DEFS.forEach(d => { p[d.k] = clampP(d.k, p[d.k] + (Math.random()*2 - 1)*0.10*(d.max - d.min)); });
-      const clim = k === 0 ? S.climate : perturbClimate(S.climate, 1 + (Math.random()*2 - 1)*0.10);
-      try { runs.push(runSWAT(clim, p, S.wsData).flow); } catch (e) {}
+      try { runs.push(simulate(p, null, k === 0 ? 1 : 1 + (Math.random()*2 - 1)*0.10).flow); } catch (e) {}
     }
     source = `${runs.length} Monte Carlo runs (parameters ±10% of range, precipitation ±10%) — an assumed spread, not a calibrated one`;
   }
@@ -3435,13 +4468,14 @@ function drawResultsCharts() {
 //  EXPORT — full files, previewed and downloadable
 // ─────────────────────────────────────────────
 const EXPORT_FILES = { daily:'daily_output.csv', rch:'output_rch_monthly.txt', hru:'output_hru_monthly.txt', sub:'output_sub_monthly.txt',
-                       climate:'climate_forcing.csv', soil:'basin_properties.csv', params:'parameters_and_performance.txt', '95ppu':'95ppu_uncertainty.csv' };
+                       climate:'climate_forcing.csv', soil:'basin_properties.csv', params:'parameters_and_performance.txt', '95ppu':'95ppu_uncertainty.csv',
+                       subgeo:'subbasins.geojson' };
 
 function buildFile(type) {
   const r = S.simResult, ws = S.wsData, soil = S.soil, p = S.calibBest || S.params, obs = S.obsFlow || [];
   const real = S.obsMeta?.kind === 'observed', need = '# Run a simulation first.\n';
   const f = (v, d) => v == null || !isFinite(v) ? '' : (+v).toFixed(d), pad = (s, n) => String(s).padStart(n);
-  const head = `# HydroGlobal v3 · ${S.name || 'Watershed'} · outlet ${S.lat?.toFixed(4)}, ${S.lon?.toFixed(4)} · area ${ws?.areaKm2?.toLocaleString() || '—'} km²\n`;
+  const head = `# HydroGlobal v4 · ${S.name || 'Watershed'} · outlet ${S.lat?.toFixed(4)}, ${S.lon?.toFixed(4)} · area ${ws?.areaKm2?.toLocaleString() || '—'} km²\n`;
   if (type === 'daily') {
     if (!r) return need;
     const mm = 86400/(r.areaKm2*1000);
@@ -3450,8 +4484,10 @@ function buildFile(type) {
     for (let i = 0; i < r.flow.length; i++) t += `${r.dates[i]},${f(r.P[i],2)},${f(r.PET[i],2)},${f(r.et[i],3)},${f(r.swe[i],1)},${f(r.sw[i],1)},${f(r.gw[i],1)},${f(r.sfQ[i]*mm,3)},${f(r.ltQ[i]*mm,3)},${f(r.bfQ[i]*mm,3)},${f(r.flow[i],3)},${f(obs[i],3)},${f(r.sed[i],5)}\n`;
     return t;
   }
+  if (type === 'subgeo') return S.model ? subbasinGeoJSON() : '# Load a watershed first.\n';
   if (type === 'rch' || type === 'hru' || type === 'sub') {
     if (!r) return need;
+    if (r.spatial) return spatialFile(type, head);
     const mo = monthlyAgg(r, obs);
     let t = head;
     if (type === 'rch') { t += '# Reach (basin outlet), calendar months\nYEAR MON   FLOW_OUTcms  FLOW_REFcms   WYLDmm   SED_t/ha\n';
@@ -3465,7 +4501,7 @@ function buildFile(type) {
   }
   if (type === 'climate') {
     const d = S.climate?.daily; if (!d) return '# Load a watershed first.\n';
-    let t = head + `# Source: ${S.climate.realData ? `${S.climate.source}, mean of ${S.climate.nPoints} point(s) inside the basin` : 'SYNTHETIC stand-in (climate service was unreachable)'}\n` +
+    let t = head + `# Source: ${S.climate.realData ? `${S.climate.source}, area-weighted (Thiessen) mean of ${S.climate.nPoints} location(s) inside the basin` : 'SYNTHETIC stand-in (climate service was unreachable)'}\n` +
       'date,precip_mm,tmax_C,tmin_C,et0_fao56_mm,snowfall_swe_mm,shortwave_MJ_m2\n';
     for (let i = 0; i < d.time.length; i++) t += `${d.time[i]},${f(d.precipitation[i],2)},${f(d.temperature_2m_max[i],1)},${f(d.temperature_2m_min[i],1)},${f(d.et0_fao_evapotranspiration?.[i],2)},${f(d.snowfall?.[i],2)},${f(d.shortwave_radiation?.[i],2)}\n`;
     return t;
@@ -3485,7 +4521,7 @@ function buildFile(type) {
     ].map(x => x.join(',')).join('\n') + '\n';
   }
   if (type === 'params') {
-    let t = `HydroGlobal v3 — parameters and performance\nWatershed: ${S.name || 'Unknown'} (${S.lat?.toFixed(4)}, ${S.lon?.toFixed(4)})\nDate: ${new Date().toISOString().slice(0,10)}\n`;
+    let t = `HydroGlobal v4 — parameters and performance\nWatershed: ${S.name || 'Unknown'} (${S.lat?.toFixed(4)}, ${S.lon?.toFixed(4)})\nDate: ${new Date().toISOString().slice(0,10)}\n`;
     t += `Köppen: ${ws?.koppen || '—'} · Soil: ${soil?.textClass || '—'} · Land cover: ${S.lc?.lcClass || '—'}\n`;
     if (S.dataFlags?.failed?.length) t += `WARNING — estimated (not retrieved): ${S.dataFlags.failed.join(', ')}\n`;
     t += `Parameter source: ${S.calibBest ? `${S.calibBest._method}, objective ${S.calibBest._objective}, ${S.calibBest._runs} runs` : 'a-priori from spatial data (uncalibrated)'}\n${'─'.repeat(64)}\n`;
@@ -4101,6 +5137,40 @@ const PUB_FIGS = [
       F.legend(L, F.h - 6, [{ lab: 'Simulated annual maxima', color: PUB.c.obs, kind: 'dot', fill: '#fff' }, { lab: 'Gumbel fit', color: PUB.c.sim }]);
       return { svg: F.toString(), hIn: F.hIn, caption: `Gumbel (EV1) fit by the method of moments to ${N} simulated annual maximum daily discharges for ${D.name}; points use Gringorten plotting positions. With ${N} years of record, quantiles beyond about the ${Math.max(2, Math.round(N / 2))}-year return period are extrapolations with wide uncertainty, and daily means understate instantaneous peaks.` + srcNote() };
     } },
+  { id: 'subbasins', file: 'Fig8_subbasin_map', title: 'Sub-basins, stream network and water yield', aspect: 0.8, needSpatial: true, build(D, W) {
+      const M = S.model, r = D.r; if (!M || M.subs.length < 2 || !r.spatial) return null;
+      const all = []; M.subs.forEach(s => (s.polygon.type === 'MultiPolygon' ? s.polygon.coordinates : [s.polygon.coordinates]).forEach(p => p.forEach(ring => ring.forEach(c => all.push(c)))));
+      const lo0 = Math.min(...all.map(c => c[0])), lo1 = Math.max(...all.map(c => c[0])), la0 = Math.min(...all.map(c => c[1])), la1 = Math.max(...all.map(c => c[1]));
+      const kx = Math.cos((la0 + la1) / 2 * Math.PI / 180), spanX = (lo1 - lo0) * kx, spanY = la1 - la0;
+      const F = new SvgFig(W, Math.max(3, Math.min(W * 1.1, W * 0.72 * spanY / spanX + 0.9))), L = 14, R = 96, top = 30, bot = 40;
+      const pw = F.w - L - R, ph = F.h - top - bot, sc = Math.min(pw / spanX, ph / spanY);
+      const ox = L + (pw - spanX * sc) / 2, oy = top + (ph - spanY * sc) / 2 + spanY * sc;
+      const X = lon => ox + (lon - lo0) * kx * sc, Y = lat => oy - (lat - la0) * sc;
+      const ringPath = ring => { let d = '', px = null, py = null; for (const c of ring) { const x = X(c[0]), y = Y(c[1]); if (px != null && Math.abs(x - px) < 0.6 && Math.abs(y - py) < 0.6) continue; d += (d ? 'L' : 'M') + n1(x) + ' ' + n1(y); px = x; py = y; } return d + 'Z'; };
+      const vals = r.sub.map(x => x.Q_mm), vlo = Math.min(...vals), vhi = Math.max(...vals);
+      M.subs.forEach((s, k) => {
+        const t = vhi > vlo ? (vals[k] - vlo) / (vhi - vlo) : 0.5;
+        const d = (s.polygon.type === 'MultiPolygon' ? s.polygon.coordinates : [s.polygon.coordinates]).map(p => p.map(ringPath).join('')).join('');
+        F.add(`<path d="${d}" fill="${rampColor(t)}" fill-rule="evenodd" stroke="#ffffff" stroke-width="0.9"/>`);
+      });
+      const maxO = Math.max(1, ...M.rivers.map(x => x.order));
+      M.rivers.forEach(rv => F.path(rv.c.map(c => [X(c[0]), Y(c[1])]), { stroke: '#ffffff', w: 2.1 + 1.3 * rv.order / maxO }));
+      M.rivers.forEach(rv => F.path(rv.c.map(c => [X(c[0]), Y(c[1])]), { stroke: '#08306b', w: 0.6 + 1.3 * rv.order / maxO }));
+      M.subs.forEach(s => { const p = s.labelPt || s.pt; F.add(`<text x="${n1(X(p[0]))}" y="${n1(Y(p[1]) + 3)}" text-anchor="middle" font-size="${F.fs - 1}" font-weight="bold" fill="#111" stroke="#fff" stroke-width="2.6" paint-order="stroke" stroke-linejoin="round">${s.id}</text>`); });
+      F.add(`<circle cx="${n1(X(S.lon))}" cy="${n1(Y(S.lat))}" r="3.2" fill="#D55E00" stroke="#fff" stroke-width="1"/>`);
+      // colour bar
+      const bx = F.w - R + 22, by = top + 8, bh = Math.min(140, ph * 0.6);
+      for (let i = 0; i < 40; i++) F.rect(bx, by + bh * (1 - (i + 1) / 40), 12, bh / 40 + 0.4, rampColor(i / 39));
+      F.add(`<rect x="${n1(bx)}" y="${n1(by)}" width="12" height="${n1(bh)}" fill="none" stroke="#333" stroke-width="0.5"/>`);
+      niceTicks(vlo, vhi, 4).filter(v => v >= vlo && v <= vhi).forEach(v => { const y = by + bh * (1 - (v - vlo) / Math.max(1e-9, vhi - vlo)); F.line(bx + 12, y, bx + 15, y); F.text(bx + 17, y + 3, fmtTick(v), { size: F.fs - 1 }); });
+      F.text(bx, by - 17, 'Water yield', { size: F.fs - 1 }); F.text(bx, by - 6, '(mm yr⁻¹)', { size: F.fs - 1 });
+      // scale bar
+      const km = niceTicks(0, spanX * 111.32 / 4, 2).filter(v => v > 0)[0] || 10, len = km / 111.32 * sc;
+      F.line(L + 4, F.h - 18, L + 4 + len, F.h - 18, { w: 1.6 }); F.text(L + 4 + len / 2, F.h - 6, `${km} km`, { anchor: 'middle', size: F.fs - 1 });
+      F.legend(L + len + 40, F.h - 10, [{ lab: 'Stream network', color: '#08306b' }, { lab: 'Outlet', color: '#D55E00', kind: 'dot', fill: '#D55E00' }]);
+      const nH = M.subs.reduce((a, s) => a + s.hrus.length, 0);
+      return { svg: F.toString(), hIn: F.hIn, caption: `The ${M.subs.length} sub-basins of ${D.name}, built from MERIT-Basins unit catchments along the MERIT-Hydro stream network (Lin et al., 2019; Yamazaki et al., 2019), shaded by simulated mean annual water yield (surface, lateral and groundwater flow generated within each sub-basin before channel routing). The model has ${nH} hydrologic response units (land-cover classes covering at least 10% of a sub-basin). Numbers identify sub-basins; the orange point is the outlet.` + srcNote() };
+    } },
 ];
 
 // ── tables ───────────────────────────────────────────────────
@@ -4111,9 +5181,10 @@ function pubTables() {
   T.push({ id: 'T1', file: 'Table1_basin_and_data', title: `Table 1. Basin characteristics and data sources for ${D.name}.`, cols: ['Property', 'Value', 'Unit', 'Source'], rows: [
     ['Outlet (lat, lon)', `${(+S.lat).toFixed(4)}, ${(+S.lon).toFixed(4)}`, '°', 'user'],
     ['Drainage area', f(ws.areaKm2, ws.areaKm2 < 100 ? 1 : 0), 'km²', (S.basin && S.basin.source) || ''],
+    ['Model units', spatialSummary(), '', spatialActive() ? (S.model.subs.length > 1 ? 'sub-basins: MERIT-Basins unit catchments; HRUs: MODIS land-cover classes ≥10%' : 'HRUs: MODIS land-cover classes ≥10%') : 'basin averages'],
     ['Mean elevation (range)', `${f(S.dem.mean, 0)} (${f(S.dem.min, 0)}–${f(S.dem.max, 0)})`, 'm', S.dem.realData ? 'Copernicus GLO-90 DEM via Open-Meteo' : 'estimated'],
     ['Simulation period', `${r.dates[0]} to ${r.dates[n - 1]}`, '', ''],
-    ['Climate forcing', `${S.climate.nPoints || 0} point(s), basin mean`, '', S.climate.realData ? S.climate.source : 'SYNTHETIC stand-in'],
+    ['Climate forcing', `${S.climate.nPoints || 0} location(s), Thiessen-weighted mean`, '', S.climate.realData ? S.climate.source : 'SYNTHETIC stand-in'],
     ['Mean annual precipitation', f(ws.annP, 0), 'mm', S.climate.srcShort || 'synthetic'],
     ['Mean annual reference ET', f(ws.annPET, 0), 'mm', 'FAO-56 Penman–Monteith'],
     ['Mean air temperature', f(ws.meanT != null ? ws.meanT : mean(Array.from(r.Tx, (v, i) => (v + r.Tn[i]) / 2)), 1), '°C', S.climate.srcShort || 'synthetic'],
@@ -4157,6 +5228,14 @@ function pubTables() {
   if (ff) ff.rows.forEach(x => rows6.push([`${x.T}-year flood (Gumbel)`, 'm³ s⁻¹', f(x.Q, 1), '—']));
   T.push({ id: 'T6', file: 'Table6_flow_statistics', title: 'Table 6. Flow statistics from daily discharge.', cols: ['Statistic', 'Unit', 'Simulated', sO ? (D.real ? 'Observed' : 'Reference (synthetic)') : 'Observed'], num: [2, 3], rows: rows6,
     note: `Flood quantiles are from ${A.length} simulated annual maxima of daily mean flow; they understate instantaneous peaks and are extrapolations beyond roughly half the record length.` });
+  if (r.spatial && S.model && S.model.subs.length > 1) {
+    T.push({ id: 'T7', file: 'Table7_subbasins', title: `Table 7. Sub-basins: characteristics and simulated mean annual water balance.`,
+      cols: ['Sub-basin', 'Drains to', 'Area (km²)', 'Elevation (m)', 'P (mm)', 'Reference ET (mm)', 'Actual ET (mm)', 'Water yield (mm)', 'Runoff ratio', 'HRUs (land cover)', 'Soil texture', 'Mean outflow (m³ s⁻¹)'],
+      num: [1, 2, 3, 4, 5, 6, 7, 8, 11],
+      rows: r.sub.map((x, k) => { const s = S.model.subs[k]; return [s.id, s.down >= 0 ? S.model.subs[s.down].id : 'outlet', f(s.areaKm2, 0), f(s.dem.mean, 0), f(x.P_mm, 0), f(x.PET_mm, 0), f(x.ET_mm, 0), f(x.Q_mm, 0), f(x.runoffCoeff, 2),
+        s.hrus.map(h => `${h.name} ${Math.round(100 * h.frac)}%`).join('; '), s.soil.textClass + (s.soil.inherited ? ' (basin mean)' : ''), f(x.meanOutflow, 2)]; }),
+      note: `Sub-basins from MERIT-Basins unit catchments; climate is the Thiessen-weighted mean of ${S.model.nLocs} ${S.climate.srcShort || 'synthetic'} location(s); soil from SoilGrids 250 m rasters; land cover from MODIS MCD12Q1 pixel blocks. Water yield is generated within the sub-basin before routing; mean outflow includes routed inflow from upstream sub-basins.` });
+  }
   return T;
 }
 
@@ -4219,7 +5298,7 @@ function renderPubPanel() {
   if (!D) { fl.innerHTML = '<div class="card" style="color:var(--txt2)">Load a watershed and run a simulation first. Figures and tables are generated from the current run.</div>'; tl.innerHTML = ''; PUBSTATE.figs = []; PUBSTATE.tables = []; return; }
   const key = document.getElementById('figW').value; PUBSTATE.W = PUB.widths[key] || 7.2;
   PUBSTATE.figs = []; let k = 0;
-  for (const def of PUB_FIGS) { if (def.needObs && !D.nObs) continue; let out = null; try { out = def.build(D, PUBSTATE.W); } catch (e) { console.warn('figure failed', def.id, e); }
+  for (const def of PUB_FIGS) { if (def.needObs && !D.nObs) continue; if (def.needSpatial && !(D.r && D.r.spatial)) continue; let out = null; try { out = def.build(D, PUBSTATE.W); } catch (e) { console.warn('figure failed', def.id, e); }
     if (!out) continue; k++; const file = def.file.replace(/^Fig\d+/, 'Fig' + k);
     PUBSTATE.figs.push({ id: def.id, num: k, file, title: def.title, svg: out.svg, wIn: out.wIn || PUBSTATE.W, hIn: out.hIn, caption: `Figure ${k}. ${out.caption}` }); }
   PUBSTATE.tables = pubTables().map((t, i) => { const num = i + 1; return Object.assign({}, t, { title: t.title.replace(/^Table \d+/, 'Table ' + num), file: t.file.replace(/^Table\d+/, 'Table' + num) }); });
@@ -4252,7 +5331,7 @@ function pubReportHTML() {
   const D = pubData(), now = new Date().toISOString().slice(0, 10), cb = S.calibBest;
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>${xmlEsc(D.name)} — HydroGlobal report</title><style>body{font:11pt/1.5 Arial,Helvetica,sans-serif;color:#111;max-width:7.6in;margin:0.6in auto;padding:0 0.3in}h1{font-size:18pt;margin:0 0 4px}h2{font-size:13pt;margin:26px 0 8px;border-bottom:1px solid #999;padding-bottom:3px}` +
     `.meta{color:#444;font-size:10pt}.warn{border:1px solid #b45309;background:#fff7ed;padding:8px 12px;font-size:10pt;margin:12px 0}figure{margin:0 0 22px;page-break-inside:avoid}figure svg{max-width:100%;height:auto}figcaption{font-size:9.5pt;color:#222;margin-top:6px}.tw{page-break-inside:avoid;margin:0 0 20px;overflow-x:auto}${PUB_TABLE_CSS}@media print{body{margin:0;max-width:none}}</style></head><body>` +
-    `<h1>${xmlEsc(D.name)}: watershed simulation report</h1><div class="meta">Generated ${now} with HydroGlobal v3 · outlet ${(+S.lat).toFixed(4)}°, ${(+S.lon).toFixed(4)}° · ${D.area.toLocaleString('en-US', { maximumFractionDigits: 0 })} km² · ${D.r.dates[0]} to ${D.r.dates[D.n - 1]}</div>` +
+    `<h1>${xmlEsc(D.name)}: watershed simulation report</h1><div class="meta">Generated ${now} with HydroGlobal v4 · outlet ${(+S.lat).toFixed(4)}°, ${(+S.lon).toFixed(4)}° · ${D.area.toLocaleString('en-US', { maximumFractionDigits: 0 })} km² · ${D.r.dates[0]} to ${D.r.dates[D.n - 1]}</div>` +
     ((S.dataFlags && S.dataFlags.failed && S.dataFlags.failed.length) || !D.real ? `<div class="warn">${S.dataFlags && S.dataFlags.failed && S.dataFlags.failed.length ? 'Inputs that could not be retrieved and were estimated: ' + xmlEsc(S.dataFlags.failed.join(', ')) + '. ' : ''}${D.real ? '' : 'No observed discharge was available; comparisons use a synthetic Budyko–Fu reference and are not a validation.'}</div>` : '') +
     `<p>Parameters: ${cb ? xmlEsc(`calibrated with ${cb._method} (objective ${cb._objective}, ${cb._runs} runs) on the first 70% of the discharge record` + (D.real ? '' : ' (synthetic reference)')) : 'a-priori values from spatial data, not calibrated'}. To save this report as a PDF, use the browser's Print command and choose “Save as PDF”.</p>` +
     `<h2>Figures</h2>${PUBSTATE.figs.map(g => `<figure>${g.svg}<figcaption>${xmlEsc(g.caption)}</figcaption></figure>`).join('')}<h2>Tables</h2>${PUBSTATE.tables.map(t => `<div class="tw">${tableHTML(t, true)}</div>`).join('')}` +
